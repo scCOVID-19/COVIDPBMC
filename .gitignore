@@ -1,0 +1,4 @@
+*.egg
+*.pyc
+*.DS_Store
+*-checkpoint.ipynb
