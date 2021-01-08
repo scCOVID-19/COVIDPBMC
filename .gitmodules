@@ -1,0 +1,3 @@
+[submodule "CovidPBMC"]
+	path = CovidPBMC
+	url = https://github.com/MarioniLab/CovidPBMC
