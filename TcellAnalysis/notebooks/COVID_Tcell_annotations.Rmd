@@ -1,0 +1,1667 @@
+---
+title: "COVID19: T cell annotation"
+output: html_notebook
+---
+
+Annotating T cells subtypes.
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(scran)
+library(ggsci)
+library(cowplot)
+library(scattermore)
+library(ComplexHeatmap)
+library(RColorBrewer)
+library(pheatmap)
+library(scater)
+library(reshape2)
+library(colorspace)
+library(dplyr)
+library(ggthemes)
+library(edgeR)
+library(scales)
+library(ggrepel)
+library(viridis)
+library(MASS)
+```
+
+I've taken all of the full clusters and selected the ones that I think contain T cells: 1, 6, 7, 8, 10 & 13.
+
+```{r, warning=FALSE, message=FALSE}
+tcell.umap <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle_UMAPs.tsv",
+                         sep="\t", header=TRUE, stringsAsFactors=FALSE)
+# fix the Sanger barcodes
+tcell.umap$CellID[tcell.umap$DataSet %in% c("Sanger")] <- gsub(tcell.umap$CellID[tcell.umap$DataSet %in% c("Sanger")],
+                                                               pattern="^(CV[0-9]+_[A-Z0-9]+-CV[0-9]+_[A-Z0-9]+)_", replacement="")
+
+tcell.clusters <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle_Tcell_clusters.tsv",
+                             sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+# tcell.meta <- merge(tcell.umap, tcell.clusters, by='CellID')
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+all.meta <- read.table("~/Dropbox/COVID19/Data/COVID19_scMeta-data.tsv",
+                       sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(all.meta) <- all.meta$CellID
+
+# remove BGCV01_CV0209 and CV0198
+all.meta <- all.meta[!all.meta$sample_id %in% c("BGCV01_CV0902"), ]
+all.meta <- all.meta[!all.meta$patient_id %in% c("CV0198"), ]
+```
+
+To normalise the cell type proportions, I need to know how many cells were captured for each patient-sample combo.
+
+```{r, warning=FALSE, message=FALSE}
+n.cell.vecc <- table(all.meta$sample_id)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+tcell.merge <- merge(tcell.clusters, all.meta, by='CellID')
+tcell.merge <- merge(tcell.merge, tcell.umap, by='CellID')
+```
+
+
+```{r}
+gene.clust <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle-Tcells-cluster_gene-Ave.tsv",
+                         sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+protein.clust <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle-Tcells-cluster_protein-Ave.tsv",
+                            sep="\t", header=TRUE, stringsAsFactors=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+plot.proteins <- unique(c("CD19", "CD86", "CD11b", "CD56", "CD8", "CD4", "CD3", "CD16", "CD14", "CD335", "CD158", "SIGLEC7",
+                          "FCER2", "TCR", "CTLA4", "CXCR5",
+                          "CX3CR1", "CD79b", "CD20", "CD1c", "CD25", "CD45RO", "HLA-DR", "CD21", "CD5", "CD64", "CD127",
+                          "CD34", "CD40", "CD123", "CD27", "CD1c", "TCR_Va7.2", "TCR_Vg2", "CD235ab", "CD10", "CD2", "CD71",
+                          "TCR_Vg9", "TCR_Va24-Ja18", "CCR7", "CD45RA", "CD62L", "CD138", "CD38", "CD274", "CD279", "TIGIT"))
+
+plot.genes <- unique(c("CD3G", "CD3E", "FCGR3A", "CD8A", "CD8B", "CD4", "CD80", "CD86", "CXCL10", "HLA.DRA", "HLA.DRB1", "VEGFA",
+                       "CCR7", "CCR2", "CCR5", "CXCR3", "CD36", "FOXP3", "MS4A1", "LYZ", "GZMB", "CD68", "GATA3", "PECAM1", "RORC", 
+                       "FCGR2A", "FCGR2B", "FCGR3B", "TPO", "HBB", "NCR1", "NCR2", "F8", "HIF1A", "CTLA4", "CD28", "CXCR1",
+                       "PDCD1", "TIM3", "LAG3", "TYMS", "PITX1", "TIGIT", "CXCL13", "BCL6",
+                       "ITGA2B", "ITGAX", "TOX", "FYN", "NCAM1", "LRRC32", "SELL", "CXCR5", "CSF1", "IL7R", "CD40LG", "MYC", "MKI67",
+                       "IFNG", "IL6", "THRB", "CD19", "CD38", "CD27", "F2", "F5", "THRB", "CD44", "IKZF2", "IKZF4"))
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+gene.plot.hm <- t(apply(t(gene.clust[, intersect(colnames(gene.clust), plot.genes)]), 1,
+                        FUN=function(XP) XP/max(XP)))
+gene.plot.hm[is.na(gene.plot.hm)] <- 0
+colnames(gene.plot.hm) <- gene.clust$GeneID
+
+pdf("~/Dropbox/COVID19/plot.dir/Gene_heatmap-Tcells.pdf",
+    height=10.95, width=9.95, useDingbats=FALSE)
+Heatmap(gene.plot.hm, name="Z-score")
+dev.off()
+
+Heatmap(gene.plot.hm, name="Z-score")
+```
+
+I'll ignore the clusters that are clearly not T-cells, like any residual monocytes, B cell and NK cells, etc.
+
+```{r, warning=FALSE, message=FALSE}
+table(tcell.merge$Site, tcell.merge$Sub.Cluster)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+rownames(protein.clust) <- protein.clust$Protein
+protein.plot.hm <- protein.clust[intersect(protein.clust$Protein, plot.proteins), 
+                                 setdiff(colnames(protein.clust), "Protein")]
+#protein.plot.hm[protein.plot.hm < 0] <- 0
+protein.plot.hm <- t(apply(protein.plot.hm, 1, FUN=function(XP) (XP - mean(XP))/sd(XP)))
+
+protein.plot.hm[is.na(protein.plot.hm)] <- 0
+
+rownames(protein.plot.hm) <- intersect(protein.clust$Protein, plot.proteins)
+
+# pdf("~/Dropbox/COVID19/plot.dir/protein_heatmap-celltypes.pdf",
+#     height=10.95, width=9.95, useDingbats=FALSE)
+# Heatmap(protein.plot.hm, name="Z-score")
+# dev.off()
+
+Heatmap(protein.plot.hm, name="Z-score")
+```
+
+
+
+```{r}
+tcell.merge$Annotation <- "Unknown"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(11)] <- "PoorQC"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(14, 19)] <- "NK"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(8)] <- "Doublets:Bcell"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(16)] <- "Doublets:Platelet"
+
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(17)] <- "ILCs"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(12)] <- "gdT"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(23, 24)] <- "CD8.TE"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(7)] <- "CD8.EM"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(22)] <- "Tfh-like"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(3)] <- "Treg"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(15)] <- "MAIT"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(5, 6, 9)] <- "CD4.Naive"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(1, 20)] <- "CD8.Naive"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(2, 4, 10, 11, 21)] <- "CD4.CM"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(13, 25)] <- "Exhausted"
+tcell.merge$Annotation[tcell.merge$Sub.Cluster %in% c(18)] <- "Proliferating"
+
+table(tcell.merge$Annotation, tcell.merge$Sub.Cluster)
+```
+
+```{r, warning=FALSE, message=FALSE}
+table(tcell.merge$Annotation, tcell.merge$Site)
+```
+
+
+```{r, fig.height=9.75, fig.width=10.95}
+n.cells <- length(unique(tcell.merge$Sub.Cluster))
+cell.cols <- colorRampPalette(pal_futurama()(12))(n.cells)
+names(cell.cols) <- unique(tcell.merge$Sub.Cluster)
+
+tcell.merge$Sub.Cluster <- factor(tcell.merge$Sub.Cluster,
+                                  levels=c(1:25))
+
+ggplot(tcell.merge, 
+       aes(x=MNN.UMAP1, y=MNN.UMAP2, colour=Sub.Cluster)) +
+    geom_scattermore() +
+    theme_cowplot() +
+    facet_wrap(~Annotation) +
+    scale_colour_manual(values=cell.cols) +
+    guides(colour=guide_legend(override.aes = list(size=3)))
+```
+
+Plot the markers genes for these groups: CD4, CD8, TCR V$\alpha$7.2, TCR V$\gamma$9, TCR V$\gamma$2, CD45RA, CCR7, CD45RO, CD27, CD28,
+CTLA4, HLA-DR, FOXP3, CXCR5, GZMB, IFNG, TOX, PDCD1.
+
+I think these annotations look OK.
+
+```{r, warning=FALSE, message=FALSE}
+# read in the gene expression
+goi.df <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle-Tcells_GeneGOI.tsv",
+                     sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+tcell.goi.merge <- merge(tcell.merge, goi.df, by='CellID')
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+# re-classify CD8.TE with high NCAM1 * FCGR3A expression
+tcell.goi.merge$Annotation[tcell.goi.merge$NCAM1 > 0 & tcell.goi.merge$Annotation %in% c("CD8.TE") &
+                               tcell.goi.merge$TRAV1.2 > 0] <- "NKT"
+tcell.goi.merge$Annotation[tcell.goi.merge$FCGR3A > 0 & tcell.goi.merge$Annotation %in% c("CD8.TE") &
+                               tcell.goi.merge$TRAV1.2 > 0] <- "NKT"
+```
+
+Remove doublets based on expression of markers for different cell lineages.
+
+```{r}
+# re-classify CD8.TE with high NCR1 * FCGR3A expression
+bcell.markers <- tcell.goi.merge$IGHM > 0 | tcell.goi.merge$IGHG3 > 0 | tcell.goi.merge$IGHD > 0 | tcell.goi.merge$IGHG4 > 0 |
+    tcell.goi.merge$IGHG2 > 0 | tcell.goi.merge$IGHG1 > 0 | tcell.goi.merge$IGHA1 > 0
+
+tcell.goi.merge$Annotation[bcell.markers] <- "Doublets:Bcell"
+
+table(tcell.goi.merge$Annotation, tcell.goi.merge$Site)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+clust.model.matrix <- model.matrix(~ 0 + Annotation, data=tcell.goi.merge)
+rownames(clust.model.matrix) <- tcell.goi.merge$CellID
+
+gene.goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(tcell.goi.merge[, setdiff(colnames(goi.df), colnames(tcell.merge))])
+gene.ave.by.label <- as.data.frame(apply(gene.goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(gene.ave.by.label) <- gsub(rownames(gene.ave.by.label), pattern="Annotation", replacement="")
+
+gene.goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(tcell.goi.merge[, setdiff(colnames(goi.df), colnames(tcell.merge))] > 0)
+gene.bin.by.label <- as.data.frame(apply(gene.goi.by.cluster.bin, 2, function(X) X/sum(X)))
+gene.bin.by.label[is.na(gene.bin.by.label)] <- 0
+rownames(gene.bin.by.label) <- gsub(rownames(gene.bin.by.label), pattern="Annotation", replacement="")
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+gene.ave.label.df <- as.data.frame(apply(gene.ave.by.label, 2, FUN=function(XP) XP/max(XP)))
+gene.ave.label.df$Annotation <- rownames(gene.ave.label.df)
+gene.ave.label.melt <- melt(gene.ave.label.df, id.vars='Annotation')
+colnames(gene.ave.label.melt) <- c("Annotation", "Gene", "AveExprs")
+
+gene.bin.label.df <- gene.bin.by.label
+gene.bin.label.df$Annotation <- rownames(gene.bin.label.df)
+gene.bin.label.melt <- melt(gene.bin.label.df, id.vars='Annotation')
+colnames(gene.bin.label.melt) <- c("Annotation", "Gene", "PropExprs")
+
+dot.plot.df <- merge(gene.ave.label.melt, gene.bin.label.melt, by=c('Annotation', 'Gene'))
+dot.plot.df$Gene <- as.character(dot.plot.df$Gene)
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=5.15, fig.width=8.25}
+dot.plot.genes <- c("CD3E", "CD8A", "CD8B", "CD4", "CCR7", "CD27", "CD28", "TOX", "CTLA4", "IFNG", "PDCD1", "GZMB", "IFNG",
+                    "TRAV1.2", "TRDV2", "TRGV9", "CD40LG", "RORC", "CD38", "NCAM1",
+                    "CXCR5", "HLA.DRB1", "LAG3", "CD44", "FOXP3", "MKI67", "NCR1", "GARP", "GZMH", "CXCR4", "FCGR3A", "TCF7")
+
+ggplot(dot.plot.df[dot.plot.df$Gene %in% dot.plot.genes, ], 
+       aes(x=Gene, y=Annotation, colour=AveExprs, size=PropExprs*100)) +
+    geom_point() +
+    theme_cowplot() +
+    scale_colour_gradient(low='grey70', high='blue') +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, colour='black'),
+          axis.text.y=element_text(colour='black'),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+    guides(colour=guide_colorbar(title='Mean Expression'),
+           size=guide_legend(title='% Express')) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_dotplot-genes.pdf",
+           height=5.15, width=8.25, useDingbats=FALSE)
+```
+
+Do the same for the proteins.
+
+```{r, warning=FALSE, message=FALSE}
+# read in the gene expression
+prot.df <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle-Tcells_ProteinGOI.tsv",
+                     sep="\t", header=TRUE, stringsAsFactors=FALSE)
+colnames(prot.df) <- c(paste0("Prot.", colnames(prot.df)[!colnames(prot.df) %in% c("CellID")]), "CellID")
+
+prot.df$Site <- "Ncl"
+prot.df$Site[grepl(prot.df$CellID, pattern="BGCV")] <- "Cambridge"
+prot.df$Site[grepl(prot.df$CellID, pattern="^S[0-9]+")] <- "Sanger"
+tcell.prot.merge <- merge(tcell.goi.merge, prot.df, by=c('CellID', 'Site'))
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+clust.model.matrix <- model.matrix(~ 0 + Annotation, data=tcell.prot.merge)
+rownames(clust.model.matrix) <- tcell.prot.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(tcell.prot.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Annotation", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(tcell.prot.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Annotation", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+ave.label.df <- as.data.frame(apply(ave.by.label, 2, FUN=function(XP) (XP-min(XP))/max(XP-min(XP))))
+ave.label.df$Annotation <- rownames(ave.label.df)
+ave.label.melt <- melt(ave.label.df, id.vars='Annotation')
+colnames(ave.label.melt) <- c("Annotation", "Protein", "AveExprs")
+
+bin.label.df <- bin.by.label
+bin.label.df$Annotation <- rownames(bin.label.df)
+bin.label.melt <- melt(bin.label.df, id.vars='Annotation')
+colnames(bin.label.melt) <- c("Annotation", "Protein", "PropExprs")
+
+protein.dot.plot.df <- merge(ave.label.melt, bin.label.melt, by=c('Annotation', 'Protein'))
+protein.dot.plot.df$Protein <- as.character(protein.dot.plot.df$Protein)
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=5.15, fig.width=8.25}
+dot.plot.prots <- c("CD3", "CD8", "CD4", "CCR7", "CD45RA", "CD45RO", "CD28", "CD27", "CTLA4", "CD56", "CD16", "ICOSL",
+                    "CD274", "CXCR3", "CD40LG", "CD38", "ICOS", "PD1", "HAVCR2",
+                    "CXCR5", "TCR_Va7.2", "TCR_Vg2", "TCR_Vg9", "TCR_Va24-Ja18", "CD62L", "CD44", "TCR_Va24.Ja18")
+
+ggplot(protein.dot.plot.df[protein.dot.plot.df$Protein %in% dot.plot.prots, ], 
+       aes(x=Protein, y=Annotation, colour=AveExprs, size=PropExprs*100)) +
+    geom_point() +
+    theme_cowplot() +
+    scale_colour_gradient(low='grey70', high=darken('red')) +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, colour='black'),
+          axis.text.y=element_text(colour='black'),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+    guides(colour=guide_colorbar(title='Mean Expression'),
+           size=guide_legend(title='% Express')) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_dotplot-protein.pdf",
+           height=5.15, width=8.25, useDingbats=FALSE)
+```
+
+
+Write out the exhausted, proliferating and Tfh-like clusters for sub-clustering.
+
+```{r}
+write.table(tcell.prot.merge$CellID[tcell.prot.merge$Annotation %in% c("Proliferating")],
+            file="~/Dropbox/COVID19/Data/Proliferating_barcodes.tsv",
+            quote=FALSE, col.names=FALSE, row.names=FALSE, sep="\t")
+
+write.table(tcell.prot.merge$CellID[tcell.prot.merge$Annotation %in% c("Tfh-like")],
+            file="~/Dropbox/COVID19/Data/Tfh_barcodes.tsv",
+            quote=FALSE, col.names=FALSE, row.names=FALSE, sep="\t")
+
+write.table(tcell.prot.merge$CellID[tcell.prot.merge$Annotation %in% c("Exhausted")],
+            file="~/Dropbox/COVID19/Data/Exhausted_barcodes.tsv",
+            quote=FALSE, col.names=FALSE, row.names=FALSE, sep="\t")
+```
+
+### Tfh sub-anntotating
+
+Read in sub-clusters and annotate.
+
+```{r, warning=FALSE, message=FALSE}
+tfh.subcluster <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle_Tfh_clusters.tsv",
+                             sep="\t", header=TRUE, stringsAsFactors=FALSE)
+tfh.subcluster.merge <- merge(tfh.subcluster, tcell.prot.merge[, !colnames(tcell.prot.merge) %in% c("Sub.Cluster")], by='CellID')
+table(tfh.subcluster.merge$Sub.Cluster)
+```
+
+Plot average expression.
+
+```{r, warning=FALSE, message=FALSE}
+tfh.subcluster.merge$Sub.Cluster <- as.character(tfh.subcluster.merge$Sub.Cluster)
+clust.model.matrix <- model.matrix(~ 0 + Sub.Cluster, data=tfh.subcluster.merge)
+rownames(clust.model.matrix) <- tfh.subcluster.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(tfh.subcluster.merge[, gsub(setdiff(colnames(goi.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(tfh.subcluster.merge[, gsub(setdiff(colnames(goi.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+dot.plot.genes <- c("CD3E", "CD8A", "CD8B", "CD4", "CCR7", "CD27", "CD28", "TOX", "CTLA4", "IFNG", "PDCD1", "GZMB", "IFNG",
+                    "TRAV1.2", "TRDV2", "TRGV9", "CD40LG", "RORC", "CD38", "IGHA1", "IGHM", "IGHD", "IGHG1", "ICOS", "IKZF4",
+                    "IKZF2", "CXCR3", "CD19", "MS4A1", "TYMS", "SELL",  "IGHE", "CD19", "MS4A1", "HBB", "PECAM1", "TPO", "THRB",
+                    "CXCR5", "HLA.DRB1", "LAG3", "CD44", "FOXP3", "MKI67", "NCR1", "GARP", "GZMH", "CXCR4", "FCGR3A", "TCF7")
+gene.plot.hm <- t(apply(t(ave.by.label[, intersect(colnames(ave.by.label), dot.plot.genes)]), 1,
+                        FUN=function(XP) XP/max(XP)))
+gene.plot.hm[is.na(gene.plot.hm)] <- 0
+#colnames(gene.plot.hm) <- gene.clust$GeneID
+
+Heatmap(gene.plot.hm, name="Z-score")
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+clust.model.matrix <- model.matrix(~ 0 + Sub.Cluster, data=tfh.subcluster.merge)
+rownames(clust.model.matrix) <- tfh.subcluster.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(tfh.subcluster.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(tfh.subcluster.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+dot.plot.prots <- c("CD3", "CD8", "CD4", "CCR7", "CD45RA", "CD45RO", "CD28", "CD27", "CTLA4", "CD56", "CD16", "ICOSL",
+                    "CD274", "CXCR3", "CD40LG", "CD38", "ICOS", "PD1", "CD19", "CD20",
+                    "CXCR5", "TCR_Va7.2", "TCR_Vg2", "TCR_Vg9", "TCR_Va24-Ja18", "CD62L", "CD44", "TCR_Va24.Ja18")
+prot.plot.hm <- t(apply(ave.by.label[, intersect(colnames(ave.by.label), dot.plot.prots)], 2,
+                        FUN=function(XP) (XP - min(XP))/max((XP - min(XP)))))
+prot.plot.hm[is.na(prot.plot.hm)] <- 0
+#colnames(gene.plot.hm) <- gene.clust$GeneID
+
+Heatmap(prot.plot.hm, name="Z-score")
+```
+
+
+```{r}
+# not Tfh
+tfh.subcluster.merge$Sub.Annotation <- "Tfh-like"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(9)] <- "Treg"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(14)] <- "NKT"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(1)] <- "gdT"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(2, 3, 16)] <- "PD1-.Tfh-like"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(11, 15)] <- "PD1+.Tfh-like"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(6)] <- "CD8.EM"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(7)] <- "CD4.EM"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(8)] <- "CD4.CM"
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(13)] <- "NK"
+
+
+
+tfh.subcluster.merge$Sub.Annotation[tfh.subcluster.merge$Sub.Cluster %in% c(4, 5, 10, 12)] <- "Doublets"
+rownames(tfh.subcluster.merge) <- tfh.subcluster.merge$CellID
+table(tfh.subcluster.merge$Sub.Annotation, tfh.subcluster.merge$Sub.Cluster)
+```
+
+
+### Proliferating sub-anntotating
+
+Read in sub-clusters and annotate.
+
+```{r, warning=FALSE, message=FALSE}
+prolif.subcluster <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle_ProlifTcell_clusters.tsv",
+                             sep="\t", header=TRUE, stringsAsFactors=FALSE)
+prolif.subcluster.merge <- merge(prolif.subcluster, tcell.prot.merge[, !colnames(tcell.prot.merge) %in% c("Sub.Cluster")], by='CellID')
+table(prolif.subcluster.merge$Sub.Cluster)
+```
+
+Plot average expression.
+
+```{r, warning=FALSE, message=FALSE}
+prolif.subcluster.merge$Sub.Cluster <- as.character(prolif.subcluster.merge$Sub.Cluster)
+clust.model.matrix <- model.matrix(~ 0 + Sub.Cluster, data=prolif.subcluster.merge)
+rownames(clust.model.matrix) <- prolif.subcluster.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(prolif.subcluster.merge[, gsub(setdiff(colnames(goi.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(prolif.subcluster.merge[, gsub(setdiff(colnames(goi.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+dot.plot.genes <- c("CD3E", "CD8A", "CD8B", "CD4", "CCR7", "CD27", "CD28", "TOX", "CTLA4", "IFNG", "PDCD1", "GZMB", "IFNG",
+                    "TRAV1.2", "TRDV2", "TRGV9", "CD40LG", "RORC", "CD38", "IGHA1", "IGHM", "IGHD", "IGHG1", "ICOS", "IKZF4",
+                    "IKZF2", "CXCR3", "CD19", "MS4A1", "TYMS", "SELL",  "IGHE", "CD19", "MS4A1", "HBB", "PECAM1", "TPO", "THRB",
+                    "CXCR5", "HLA.DRB1", "LAG3", "CD44", "FOXP3", "MKI67", "NCR1", "GARP", "GZMH", "CXCR4", "FCGR3A", "TCF7")
+gene.plot.hm <- t(apply(t(ave.by.label[, intersect(colnames(ave.by.label), dot.plot.genes)]), 1,
+                        FUN=function(XP) XP/max(XP)))
+gene.plot.hm[is.na(gene.plot.hm)] <- 0
+#colnames(gene.plot.hm) <- gene.clust$GeneID
+
+Heatmap(gene.plot.hm, name="Z-score")
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+clust.model.matrix <- model.matrix(~ 0 + Sub.Cluster, data=prolif.subcluster.merge)
+rownames(clust.model.matrix) <- prolif.subcluster.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(prolif.subcluster.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(prolif.subcluster.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+dot.plot.prots <- c("CD3", "CD8", "CD4", "CCR7", "CD45RA", "CD45RO", "CD28", "CD27", "CTLA4", "CD56", "CD16", "ICOSL",
+                    "CD274", "CXCR3", "CD40LG", "CD38", "ICOS", "PD1", "CD19", "CD20",
+                    "CXCR5", "TCR_Va7.2", "TCR_Vg2", "TCR_Vg9", "TCR_Va24-Ja18", "CD62L", "CD44", "TCR_Va24.Ja18")
+prot.plot.hm <- t(apply(ave.by.label[, intersect(colnames(ave.by.label), dot.plot.prots)], 2,
+                        FUN=function(XP) (XP - min(XP))/max((XP - min(XP)))))
+prot.plot.hm[is.na(prot.plot.hm)] <- 0
+#colnames(gene.plot.hm) <- gene.clust$GeneID
+
+Heatmap(prot.plot.hm, name="Z-score")
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+# not Tfh
+prolif.subcluster.merge$Sub.Annotation <- "Proliferating"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(2, 12)] <- "Doublets:Bcell"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(1)] <- "PD1-.Tfh-like"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(4, 10)] <- "CD4.Naive"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(5, 9)] <- "NK"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(6)] <- "gdT"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(7)] <- "MAIT"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(11)] <- "CD4.CM"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(3, 13)] <- "CD4.EM"
+prolif.subcluster.merge$Sub.Annotation[prolif.subcluster.merge$Sub.Cluster %in% c(8)] <- "CD8.EM"
+
+
+rownames(prolif.subcluster.merge) <- prolif.subcluster.merge$CellID
+table(prolif.subcluster.merge$Sub.Annotation, prolif.subcluster.merge$Sub.Cluster)
+```
+
+### Exhausted sub-anntotating
+
+Read in sub-clusters and annotate.
+
+```{r, warning=FALSE, message=FALSE}
+exhaust.subcluster <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle_Exhausted_clusters.tsv",
+                             sep="\t", header=TRUE, stringsAsFactors=FALSE)
+exhaust.subcluster.merge <- merge(exhaust.subcluster, tcell.prot.merge[, !colnames(tcell.prot.merge) %in% c("Sub.Cluster")], by='CellID')
+table(exhaust.subcluster.merge$Sub.Cluster)
+```
+
+Plot average expression.
+
+```{r, warning=FALSE, message=FALSE}
+exhaust.subcluster.merge$Sub.Cluster <- as.character(exhaust.subcluster.merge$Sub.Cluster)
+clust.model.matrix <- model.matrix(~ 0 + Sub.Cluster, data=exhaust.subcluster.merge)
+rownames(clust.model.matrix) <- exhaust.subcluster.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(exhaust.subcluster.merge[, gsub(setdiff(colnames(goi.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(exhaust.subcluster.merge[, gsub(setdiff(colnames(goi.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+dot.plot.genes <- c("CD3E", "CD3G", "CD8A", "CD8B", "CD4", "CCR7", "CD27", "CD28", "TOX", "CTLA4", "IFNG", "PDCD1", "GZMB", "IFNG", "TIGIT",
+                    "TRAV1.2", "TRDV2", "TRGV9", "CD40LG", "RORC", "CD38", "IGHA1", "IGHM", "IGHD", "IGHG1", "ICOS", "IKZF4", "GARP",
+                    "IKZF2", "CXCR3", "CD19", "MS4A1", "TYMS", "SELL", "CD11b", "ITGAX", "ITGAM", "FAS", "PECAM1", "HBB", "IGHE",
+                    "CXCR5", "HLA.DRB1", "LAG3", "CD44", "FOXP3", "MKI67", "NCR1", "GARP", "GZMH", "CXCR4", "FCGR3A", "TCF7", "IL17A")
+gene.plot.hm <- t(apply(t(ave.by.label[, intersect(colnames(ave.by.label), dot.plot.genes)]), 1,
+                        FUN=function(XP) XP/max(XP)))
+gene.plot.hm[is.na(gene.plot.hm)] <- 0
+#colnames(gene.plot.hm) <- gene.clust$GeneID
+
+Heatmap(gene.plot.hm, name="Z-score")
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+clust.model.matrix <- model.matrix(~ 0 + Sub.Cluster, data=exhaust.subcluster.merge)
+rownames(clust.model.matrix) <- exhaust.subcluster.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(exhaust.subcluster.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(exhaust.subcluster.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Sub\\.Cluster", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=10.95, fig.width=9.95}
+dot.plot.prots <- c("CD3", "CD8", "CD4", "CCR7", "CD45RA", "CD45RO", "CD28", "CD27", "CTLA4", "CD56", "CD16", "ICOSL",
+                    "CD274", "CXCR3", "CD40LG", "CD38", "ICOS", "PD1", "CD19", "CD20", "CD11b", "CD14", "FAS",
+                    "CXCR5", "TCR_Va7.2", "TCR_Vg2", "TCR_Vg9", "TCR_Va24-Ja18", "CD62L", "CD44", "TCR_Va24.Ja18")
+prot.plot.hm <- t(apply(ave.by.label[, intersect(colnames(ave.by.label), dot.plot.prots)], 2,
+                        FUN=function(XP) (XP - min(XP))/max((XP - min(XP)))))
+prot.plot.hm[is.na(prot.plot.hm)] <- 0
+#colnames(gene.plot.hm) <- gene.clust$GeneID
+
+Heatmap(prot.plot.hm, name="Z-score")
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+# not Tfh
+exhaust.subcluster.merge$Sub.Annotation <- "Exhausted"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(2, 4, 9, 10)] <- "Doublets:Bcell"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(14)] <- "Doublets"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(15, 17, 20)] <- "NKT"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(3, 4, 7, 11, 13, 27)] <- "CD4.Naive"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(5, 16, 18, 23)] <- "PD1-.Tfh-like"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(1)] <- "PD1+.Tfh-like"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(6)] <- "CD4.CM"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(25)] <- "CD4.EM"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(8)] <- "Treg"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(12, 19, 21, 22, 24)] <- "gdT"
+exhaust.subcluster.merge$Sub.Annotation[exhaust.subcluster.merge$Sub.Cluster %in% c(26)] <- "NK"
+
+
+rownames(exhaust.subcluster.merge) <- exhaust.subcluster.merge$CellID
+table(exhaust.subcluster.merge$Sub.Annotation, exhaust.subcluster.merge$Sub.Cluster)
+```
+
+Fill in the sub-annotations.
+
+```{r, warning=FALSE, message=FALSE}
+rownames(tcell.prot.merge) <- tcell.prot.merge$CellID
+tcell.prot.merge$Sub.Annotation <- tcell.prot.merge$Annotation
+tcell.prot.merge[rownames(tfh.subcluster.merge), ]$Sub.Annotation <- tfh.subcluster.merge$Sub.Annotation
+tcell.prot.merge[rownames(prolif.subcluster.merge), ]$Sub.Annotation <- prolif.subcluster.merge$Sub.Annotation
+tcell.prot.merge[rownames(exhaust.subcluster.merge), ]$Sub.Annotation <- exhaust.subcluster.merge$Sub.Annotation
+
+# If we use the mRNA, there are A LOT of DP & DN T cells.
+
+# re-classify CD4s within CD8 clusters
+tcell.prot.merge$Sub.Annotation[(tcell.prot.merge$CD8A > 0 | tcell.prot.merge$CD8B > 0) &
+                                    tcell.prot.merge$CD4 <= 0 &
+                                    tcell.prot.merge$CXCR5 <= 0 &
+                                    tcell.prot.merge$Sub.Annotation %in% c("PD1-.Tfh-like", "PD1+.Tfh-like")] <- "CD8.TE"
+
+# final doublet classification
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$IGHA1 > 0 | tcell.prot.merge$IGHD > 0 | tcell.prot.merge$IGHE > 0 | tcell.prot.merge$IGHG1 > 0 |
+                                    tcell.prot.merge$IGHG2 > 0 | tcell.prot.merge$IGHG3 > 0 | tcell.prot.merge$IGHG4 > 0] <- "Doublets:Bcell"
+
+# final NKT classification
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$FCGR3A > 0 & tcell.prot.merge$NCAM1 > 0 &  
+                                    tcell.prot.merge$Sub.Annotation %in% c("CD8.EM", "CD8.TE", "CD8.Naive")] <- "NKT"
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$FCGR3A > 0 & tcell.prot.merge$NCR1 > 0 & 
+                                    tcell.prot.merge$Sub.Annotation %in% c("CD8.EM", "CD8.TE", "CD8.Naive")] <- "NKT"
+
+# fix the Treg annotations
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$Sub.Annotation %in% c("Treg") &
+                                    !(tcell.prot.merge$FOXP3 > 0 & tcell.prot.merge$IKZF2 > 0)] <- "CD4.IL22"
+
+# Add in a Th17 phenotype
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$Sub.Annotation %in% c("Treg", "CD4.CM", "CD4.EM", "CD4.Naive", "CD4.IL22") &
+                                   (tcell.prot.merge$CD8A <= 0 & tcell.prot.merge$CD8B <= 0) &
+                                    tcell.prot.merge$RORC > 0 &
+                                    (tcell.prot.merge$IL17A > 0 | 
+                                         tcell.prot.merge$IL17F > 0 | tcell.prot.merge$IL21 > 0)] <- "CD4.Th17"
+
+# Add in a Th1 phenotype
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$Sub.Annotation %in% c("Treg", "CD4.CM", "CD4.EM", "CD4.Naive", "CD4.IL22") &
+                                    (tcell.prot.merge$CD8A <= 0 & tcell.prot.merge$CD8B <= 0) &
+                                    (tcell.prot.merge$IL2 > 0 | tcell.prot.merge$TNF > 0 | 
+                                         tcell.prot.merge$LTA) &
+                                    tcell.prot.merge$TBX21 > 0] <- "CD4.Th1"
+
+# Add in a Th2 phenotype
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$Sub.Annotation %in% c("Treg", "CD4.CM", "CD4.EM", "CD4.Naive", "CD4.IL22") &
+                                    (tcell.prot.merge$CD8A <= 0 & tcell.prot.merge$CD8B <= 0) &
+                                    tcell.prot.merge$GATA3 > 0 &
+                                    (tcell.prot.merge$IL4 > 0 | tcell.prot.merge$IL5 > 0)] <- "CD4.Th2"
+
+# merge the Tfh annotation
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$Sub.Annotation %in% c("PD1-.Tfh-like", "PD1+.Tfh-like")] <- "CD4.Tfh"
+
+# Add in the proliferating/activated/exhausted annotation
+active.tcells <- read.csv("~/Dropbox/COVID19/Data/prolif_CD4CD8.csv",
+                          header=FALSE, stringsAsFactors=FALSE)
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$CellID %in% active.tcells$V1[active.tcells$V2 %in% c("prolif_CD4")]] <- "CD4.Prolif"
+tcell.prot.merge$Sub.Annotation[tcell.prot.merge$CellID %in% active.tcells$V1[active.tcells$V2 %in% c("prolif_CD8")]] <- "CD8.Prolif"
+
+table(tcell.prot.merge$Sub.Annotation, tcell.prot.merge$Site)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+library(BiocNeighbors)
+tcell.pcs <- read.table("~/Dropbox/COVID19/Data/Tcells_MNN.txt", sep="\t", header=TRUE, stringsAsFactors=FALSE)
+tcell.pcs <- tcell.pcs[tcell.pcs$CellID %in% tcell.prot.merge$CellID, ]
+rownames(tcell.pcs) <- tcell.pcs$CellID
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+tcell.harmony <- read.csv("~/Dropbox/COVID19/Data/COVID_Harmony_PCA_OnlyT_embeddings.csv",
+                          header=TRUE, stringsAsFactors=FALSE, row.names=1)
+tcell.harmony <- tcell.harmony[rownames(tcell.harmony) %in% tcell.prot.merge$CellID, ]
+tcell.harmony$CellID <- rownames(tcell.harmony)
+
+write.table(tcell.harmony,
+            file="~/Dropbox/COVID19/Data/COVID_Tcells_harmony.tsv",
+            sep="\t", row.names=FALSE, quote=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+# # keep.tcells <- unique(tcell.prot.merge$CellID)
+# tcell.kNN <- findKNN(as.matrix(tcell.pcs[, 1:30]), k=7, get.distance=FALSE)$index
+# rownames(tcell.kNN) <- tcell.pcs$CellID
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+# tcell.harm.kNN <- findKNN(as.matrix(tcell.harmony[, 1:30]), k=7, get.distance=FALSE)$index
+# rownames(tcell.harm.kNN) <- rownames(tcell.harmony)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+# keep.tcells <- intersect(rownames(tcell.harmony), 
+#                          unique(tcell.prot.merge$CellID[tcell.prot.merge$Sub.Annotation %in% c("CD4.Tfh", "CD4.Th1", "CD4.Th2", "CD4.Th17")]))
+# 
+# refined.harmony.annot.list <- list()
+# for(i in seq_along(keep.tcells)){
+#     i.cell <- keep.tcells[i]
+#     i.type <- tcell.prot.merge$Sub.Annotation[tcell.prot.merge$CellID == i.cell]
+# 
+#     i.nn <- tcell.pcs$CellID[tcell.harm.kNN[i.cell, ]]
+#     i.labels <- tcell.prot.merge[tcell.prot.merge$CellID %in% i.nn, ]$Sub.Annotation
+#     i.tab <- table(i.labels)
+#     i.max <- max(i.tab)
+#     i.max.type <- names(i.tab)[which(i.tab == i.max)]
+# 
+#     if((i.type == i.max.type) & (length(i.max.type) == 1)){
+#         refined.harmony.annot.list[[i.cell]] <- i.type
+#     } else if((i.type != i.max.type) & (length(i.max.type) == 1)){
+#         refined.harmony.annot.list[[i.cell]] <- i.max.type
+#     } else{
+#         # keep the same annotation if it's ambiguous
+#         refined.harmony.annot.list[[i.cell]] <- i.type
+#     }
+# 
+# }
+# 
+# refined.harmony.df <- data.frame("CellID"=names(refined.harmony.annot.list), "Refined.Harmony.Annotation"=unlist(refined.harmony.annot.list))
+# refined.harmony.merge <- merge(refined.harmony.df, tcell.prot.merge, by='CellID')
+# 
+# table(refined.harmony.merge$Refined.Harmony.Annotation, refined.harmony.merge$Sub.Annotation)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+# refined.annot.list <- list()
+# for(i in seq_along(keep.tcells)){
+#     i.cell <- keep.tcells[i]
+#     i.type <- tcell.prot.merge[tcell.prot.merge$CellID %in% i.cell, ]$Sub.Annotation
+# 
+#     i.nn <- tcell.pcs$CellID[tcell.kNN[i.cell, ]]
+#     i.labels <- tcell.prot.merge[tcell.prot.merge$CellID %in% i.nn, ]$Sub.Annotation
+#     i.tab <- table(i.labels)
+#     i.max <- max(i.tab)
+#     i.max.type <- names(i.tab)[which(i.tab == i.max)]
+# 
+#     if((i.type == i.max.type) & (length(i.max.type) == 1)){
+#         refined.annot.list[[i.cell]] <- i.type
+#     } else if((i.type != i.max.type) & (length(i.max.type) == 1)){
+#         refined.annot.list[[i.cell]] <- i.max.type
+#     } else{
+#         # keep the same annotation if it's ambiguous
+#         refined.annot.list[[i.cell]] <- i.type
+#     }
+# 
+# }
+# 
+# refined.df <- data.frame("CellID"=names(refined.annot.list), "Refined.Annotation"=unlist(refined.annot.list))
+# refined.merge <- merge(refined.df, tcell.prot.merge, by='CellID')
+# 
+# table(refined.merge$Refined.Annotation, refined.merge$Sub.Annotation)
+```
+
+
+```{r}
+# write out the annotations, without the doublets, NK cells and ILCs
+write.table(tcell.prot.merge[!tcell.prot.merge$Sub.Annotation %in% c("NK", "Prolif.NK", "ILCs", 
+                                                                     "Doublets:Platelet", "Doublets:Bcell", "Doublets"),
+                        c("CellID", "Sub.Annotation")],
+            file="~/Dropbox/COVID19/Data/Tcell_annotations_ext.tsv",
+            sep="\t", quote=FALSE, row.names=FALSE)
+
+write.table(tcell.prot.merge[tcell.prot.merge$Sub.Annotation %in% c("Doublets:Platelet", "Doublets:Bcell", "Doublets"),
+                        c("CellID")],
+            file="~/Dropbox/COVID19/Data/Tcell_doublets_ext.tsv",
+            sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+
+write.table(tcell.prot.merge[!tcell.prot.merge$Sub.Annotation %in% c("NK", "Prolif.NK", "ILCs",
+                                                                     "Doublets:Platelet", "Doublets:Bcell", "Doublets"),
+                             c("CellID")],
+            file="~/Dropbox/COVID19/Data/Tcell_barcodes.tsv",
+            sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+
+write.table(tcell.prot.merge[tcell.prot.merge$Sub.Annotation %in% c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Th1", "CD4.Th2", "CD4.Th17",
+                                                                     "Treg", "CD4.Prolif", "CD4.Tfh"),
+                             c("CellID")],
+            file="~/Dropbox/COVID19/Data/Tcell-CD4_barcodes.tsv",
+            sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+
+write.table(tcell.prot.merge[tcell.prot.merge$Sub.Annotation %in% c("CD8.Naive", "CD8.CM", "CD8.EM", "CD8.Prolif", "CD8.TE", "NKT", "MAIT", "gdT"),
+                             c("CellID")],
+            file="~/Dropbox/COVID19/Data/Tcell-CD8_barcodes.tsv",
+            sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+```
+
+Plot the proportions of T cells, normalised properly.
+
+```{r}
+cell.freq.tab <- table(tcell.prot.merge$sample_id,
+                       tcell.prot.merge$Sub.Annotation)
+
+cell.freq.df <- as.data.frame(sapply(rownames(cell.freq.tab), FUN=function(X) cell.freq.tab[X, ]/n.cell.vecc[X]))
+cell.freq.df$CellType <- rownames(cell.freq.df)
+cell.freq.df <- melt(cell.freq.df, id.vars=c("CellType"))
+cell.freq.df$CellType <- as.character(cell.freq.df$CellType)
+colnames(cell.freq.df) <- c("CellType", "sample_id", "Freq")
+cell.freq.df$Sex <- "Female"
+cell.freq.df$Sex[cell.freq.df$sample_id %in% unique(tcell.prot.merge$sample_id[tcell.prot.merge$Sex %in% c("M", "Male")])] <- "Male"
+
+covid.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
+                        header=TRUE, stringsAsFactors=FALSE)
+
+cell.freq.merge <- merge(cell.freq.df, covid.meta, by=c('sample_id', 'Sex'))
+cell.freq.merge <- cell.freq.merge[!cell.freq.merge$D0_status_summary %in% c("Non_covid"), ]
+cell.freq.merge <- cell.freq.merge[!cell.freq.merge$patient_id %in% c("CV0198"), ]
+# remove doublets, etc
+cell.freq.merge <- cell.freq.merge[!cell.freq.merge$CellType %in% c("Doublets:Bcell", "Doublets:Platelet", "Doublets", "NK", "ILCs"), ]
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=9.15}
+group.cols <- c("#2ca02c", "#1f77b4", "#9467bd", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#252525")
+names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+
+cell.freq.merge$D0_status_summary <- factor(cell.freq.merge$D0_status_summary,
+                                            levels=c("Healthy", "Asymptomatic", "Mild", 
+                                                     "Moderate", "Severe", "Critical", "LPS", "Non_covid"))
+
+# ggplot(cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+#                            cell.freq.merge$CellType %in% c("Doublets:Bcell", "Doublets:Platelet", "Doublets"), ],
+#        aes(x=D0_status_summary, y=Freq, fill=D0_status_summary)) +
+#     geom_boxplot() +
+#     theme_cowplot() +
+#     facet_wrap(~CellType, scales="free_y") +
+#     scale_fill_manual(values=group.cols) +
+#     expand_limits(y=c(0)) +
+#     theme(axis.text.x=element_blank(),
+#           strip.background=element_rect(fill='white', colour='white'),
+#           strip.text=element_text(size=14)) +
+#     labs(x="Severity Group", y="Proportion") +
+#     guides(fill=guide_legend(title="Severity")) +
+#     ggsave("~/Dropbox/COVID19/plot.dir/Tcell-doublets_proportions-boxplot.pdf",
+#            height=2.95, width=9.15, useDingbats=FALSE) +
+#     NULL
+```
+
+
+```{r}
+write.table(cell.freq.merge,
+            file="~/Dropbox/COVID19/Data/Tcell_proportions.tsv",
+            sep="\t", quote=FALSE, row.names=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.95, fig.width=11.15}
+ggplot(cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                           !cell.freq.merge$CellType %in% c("NK", "Prolif.NK", "ILCs", "Doublets:Bcell", "Doublets:Platelet", "Doublets"), ],
+       aes(x=D0_status_summary, y=Freq, fill=D0_status_summary)) +
+    geom_boxplot() +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y") +
+    scale_fill_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(axis.text.x=element_blank(),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    labs(x="Severity Group", y="Proportion") +
+    guides(fill=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcells_proportions-boxplot.pdf",
+           height=5.95, width=11.15, useDingbats=FALSE) +
+    NULL
+```
+
+For the figures these need to be a filled barchart (?!). Focus in on the Tfh-like cells.
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.15, fig.width=3.55}
+ggplot(cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                           cell.freq.merge$CellType %in% c("CD4.Tfh"), ],
+       aes(x=D0_status_summary, y=Freq, fill=D0_status_summary)) +
+    geom_boxplot() +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y") +
+    scale_fill_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(axis.text.x=element_blank(),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    labs(x="Severity Group", y="Proportion") +
+    guides(fill=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcells_proportions_Tfh-boxplot.pdf",
+           height=2.15, width=3.55, useDingbats=FALSE) +
+    NULL
+```
+
+Run a LM comparing categories.
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.15, fig.width=3.55}
+ggplot(cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                           cell.freq.merge$CellType %in% c("CD4.Tfh"), ],
+       aes(x=D0_status_summary, y=Freq, fill=Sex)) +
+    geom_boxplot() +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y") +
+    scale_fill_colorblind() +
+    expand_limits(y=c(0)) +
+    theme(axis.text.x=element_blank(),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    labs(x="Severity Group", y="Proportion") +
+    guides(fill=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcells_proportions_Tfh-byGender_boxplot.pdf",
+           height=2.15, width=3.55, useDingbats=FALSE) +
+    NULL
+```
+
+Compare healthy vs. asymptomatic, and asymptomatic > critical.
+
+```{r, warning=FALSE, message=FALSE}
+healthy.tfh <- cell.freq.merge$Freq[cell.freq.merge$CellType %in% c("CD4.Tfh") &
+                                        cell.freq.merge$D0_status_summary %in% c("Healthy") &
+                                        cell.freq.merge$Collection_Day %in% c("D0")]
+asymp.tfh <- cell.freq.merge$Freq[cell.freq.merge$CellType %in% c("CD4.Tfh") &
+                                        cell.freq.merge$D0_status_summary %in% c("Asymptomatic") &
+                                        cell.freq.merge$Collection_Day %in% c("D0")]
+
+tfh.utest <- wilcox.test(x=healthy.tfh, y=asymp.tfh, alternative="two.sided")
+tfh.utest
+```
+
+I should model the counts, normalized by the total numbers of captured cells.
+
+```{r}
+tfh.lm.list <- list()
+covid.tfh.merge <- cell.freq.merge[!cell.freq.merge$D0_status_summary %in% c("Healthy"), ]
+covid.tfh.merge$OrderedStatus <- ordered(covid.tfh.merge$D0_status_summary,
+                                         levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+covid.tfh.merge$Days_from_onset <- as.numeric(covid.tfh.merge$Days_from_onset)
+
+c.types <- c("CD4.Tfh")
+
+for(i in seq_along(c.types)){
+    i.c <- c.types[i]
+    
+    i.lm.df <- data.frame("sample_id"=rownames(cell.freq.tab), "Count"=cell.freq.tab[, i.c])
+    i.lm.df <- merge(i.lm.df, covid.tfh.merge[covid.tfh.merge$CellType %in% i.c, ], by='sample_id')
+    
+    # i.tfh.lm <- glm(Count ~ Sex + Age + Site + OrderedStatus,
+    #                data=i.lm.df, family=poisson(link="log"))
+    i.tfh.lm <- glm.nb(Count ~ Sex + Age + Site + OrderedStatus, data=i.lm.df, init.theta=1)
+    
+    i.lm.res <- summary(i.tfh.lm)
+    tfh.lm.list[[i.c]] <- data.frame("CellType"=rep(i.c, nrow(i.lm.res$coefficients)),
+                                     "Beta"=i.lm.res$coefficients[, 1],
+                                     "SE"=i.lm.res$coefficients[, 2],
+                                     "STAT"=i.lm.res$coefficients[, 3],
+                                     "Pvalue"=i.lm.res$coefficients[, 4],
+                                     "Predictor"=rownames(i.lm.res$coefficients))
+}
+
+tfh.lm.df <- do.call(rbind.data.frame, tfh.lm.list)
+tfh.lm.df$Predictor <- gsub(tfh.lm.df$Predictor, pattern="OrderedStatus", replacement="Severity")
+tfh.lm.df$Predictor <- gsub(tfh.lm.df$Predictor, pattern="Male", replacement="")
+tfh.lm.df$Predictor <- gsub(tfh.lm.df$Predictor, pattern="Site", replacement="")
+tfh.lm.df <- tfh.lm.df[!tfh.lm.df$Predictor %in% c("(Intercept)"), ]
+tfh.lm.df$P.Adjust <- p.adjust(tfh.lm.df$Pvalue)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=4.95}
+ggplot(tfh.lm.df, aes(x=Predictor, y=Beta, fill=Pvalue < 0.05)) +
+    geom_hline(yintercept=0, lty=2, col='grey70') +
+    geom_errorbar(aes(ymin=Beta-SE, ymax=Beta+SE)) +
+    geom_point(shape=22, size=3) +
+    theme_cowplot() +
+     theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    coord_flip() +
+    scale_fill_manual(values=c("blue", "orange")) +
+    facet_wrap(~CellType, scales="free_x")  + 
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_Tfh_props-LM.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+cellfreq.df <- cell.freq.merge %>% group_by(D0_status_summary, CellType) %>% summarise(Mean = mean(Freq))
+cellfreq.df$D0_status_summary <- factor(cellfreq.df$D0_status_summary,
+                                        levels=c("Healthy", "Asymptomatic", "Mild", 
+                                                 "Moderate", "Severe", "Critical", "LPS"))
+```
+
+Create a new colour palette.
+
+```{r}
+cell.order <- c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Tfh",
+                "Treg", "CD8.Naive", "CD8.Activated", "CD8.Prolif", "CD8.CM", "CD8.TE", "CD8.EM", "gdT", "MAIT", "NKT")
+
+all.qual.cols <- brewer.pal.info[brewer.pal.info$category %in% c("qual") & brewer.pal.info$colorblind, ]
+col_vector = unlist(mapply(brewer.pal, all.qual.cols$maxcolors, rownames(all.qual.cols)))
+
+# cell.cols <- col_vector[c(1:7, 9:19)]
+cell.cols <- col_vector[c(1:17, 19, 20)]
+names(cell.cols) <- cell.order
+```
+
+
+```{r}
+pie(rep(1, 18), col=cell.cols)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.25, fig.width=6.95}
+# n.cells <- length(cell.order)
+# cell.cols <- colorRampPalette(pal_futurama()(12))(n.cells)
+# names(cell.cols) <- cell.order
+
+cellfreq.df$CellType <- factor(cellfreq.df$CellType,
+                               levels=cell.order)
+
+ggplot(cellfreq.df,
+       aes(x=D0_status_summary, y = Mean, fill=CellType))+ 
+    geom_bar(position="fill", stat="identity", width = 0.9, colour = "black")+
+    scale_fill_manual(values = cell.cols) +
+    theme(aspect.ratio = 1/1.5, 
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 14, colour = "black"),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          axis.text.y = element_text(size = 14, colour = "black"),
+          legend.key.size=unit(0.4, "cm"),
+          axis.title.x=element_blank(), axis.title.y=element_blank(),
+          legend.text = element_text(size = 14), legend.title=element_text(size=14),
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+    guides(fill=guide_legend(title="Cell type", ncol=1)) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_barchart.pdf",
+           height=4.25, width=6.95, useDingbats=FALSE)
+```
+
+I have a misgiving about this, as it masks the distribution of the proportions - maybe a series of filled boxplots, e.g. a waterfall?
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.25, fig.width=12.95}
+cell.freq.merge$CellType <- factor(cell.freq.merge$CellType,
+                                   levels=cell.order)
+
+ggplot(cell.freq.merge,
+       aes(x=sample_id, y = Freq, fill=CellType))+ 
+    geom_bar(position="fill", stat="identity", width = 0.8, colour = "black")+
+    scale_fill_manual(values = cell.cols) +
+    facet_grid(. ~ D0_status_summary, scales="free_x", space="free") +
+    theme(axis.text.x = element_blank(),
+          panel.spacing=unit(0, "lines"),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          axis.text.y = element_text(size = 18),
+          axis.title.x=element_blank(), axis.title.y=element_blank(),
+          axis.ticks.x=element_blank(),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14, angle=90, colour='black'),
+          legend.text = element_text(size = 18), legend.title=element_text(size=18),
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+    # guides(fill=guide_legend(title="Cell type")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_barchart-full.pdf",
+           height=5.25, width=8.95, useDingbats=FALSE) +
+    NULL
+```
+
+Make dot plots.
+
+```{r, warning=FALSE, message=FALSE}
+clust.model.matrix <- model.matrix(~ 0 + Sub.Annotation, data=tcell.prot.merge)
+rownames(clust.model.matrix) <- tcell.prot.merge$CellID
+
+gene.goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(tcell.prot.merge[, setdiff(colnames(goi.df), colnames(tcell.merge))])
+gene.ave.by.label <- as.data.frame(apply(gene.goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(gene.ave.by.label) <- gsub(rownames(gene.ave.by.label), pattern="Sub\\.Annotation", replacement="")
+
+gene.goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(tcell.prot.merge[, setdiff(colnames(goi.df), colnames(tcell.merge))] > 0)
+gene.bin.by.label <- as.data.frame(apply(gene.goi.by.cluster.bin, 2, function(X) X/sum(X)))
+gene.bin.by.label[is.na(gene.bin.by.label)] <- 0
+rownames(gene.bin.by.label) <- gsub(rownames(gene.bin.by.label), pattern="Sub\\.Annotation", replacement="")
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+gene.ave.label.df <- as.data.frame(apply(gene.ave.by.label, 2, FUN=function(XP) XP/max(XP)))
+gene.ave.label.df$Sub.Annotation <- rownames(gene.ave.label.df)
+gene.ave.label.melt <- melt(gene.ave.label.df, id.vars='Sub.Annotation')
+colnames(gene.ave.label.melt) <- c("Sub.Annotation", "Gene", "AveExprs")
+
+gene.bin.label.df <- gene.bin.by.label
+gene.bin.label.df$Sub.Annotation <- rownames(gene.bin.label.df)
+gene.bin.label.melt <- melt(gene.bin.label.df, id.vars='Sub.Annotation')
+colnames(gene.bin.label.melt) <- c("Sub.Annotation", "Gene", "PropExprs")
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=4.65, fig.width=8.95}
+dot.plot.df <- merge(gene.ave.label.melt, gene.bin.label.melt, by=c('Sub.Annotation', 'Gene'))
+dot.plot.df$Gene <- as.character(dot.plot.df$Gene)
+
+dot.plot.genes <- c("CD3G", "CD8A", "CD4", "CCR7", "CD27", "CD28", "TOX", "CTLA4", "IFNG", "TBX21",
+                    "PDCD1", "GZMB", "RORC", "IKZF2", "GATA3", "TNFRSF9", "IL7R", "KLRG1",
+                    "TRAV1.2", "TRDV2", "TRGV9", "CD40LG", "RORC", "NCAM1", "CCR6", 
+                    "CXCR5", "HLA.DRB1", "LAG3", "FOXP3", "MKI67", "NCR1", "GARP", "FCGR3A")
+gene.cluster <- hclust(dist(t(gene.ave.by.label[, intersect(colnames(gene.ave.by.label), dot.plot.genes)])))$order
+
+# manually set the gene order
+gene.order <- c("CD3G", "CCR7", "CD27", "CD4", "CD28", "TNFRSF9", "CCR6", "CD40LG", "MKI67", "TBX21", "GATA3", "RORC", "IKZF2",
+                "FOXP3", "CTLA4", "PDCD1", "CXCR5", "CD8A", "GZMB", "HLA.DRB1", "IFNG", "LAG3", "TOX", "IL7R", "KLRG1", "TRDV2", 
+                "TRGV9", "TRAV1.2", "NCAM1", "NCR1", "FCGR3A")
+
+dot.plot.df <- dot.plot.df[dot.plot.df$Gene %in% dot.plot.genes, ]
+dot.plot.df$Gene <- factor(dot.plot.df$Gene,
+                           levels=gene.order)
+
+dot.plot.df <- dot.plot.df[dot.plot.df$Sub.Annotation %in% cell.order, ]
+dot.plot.df$Sub.Annotation <- factor(dot.plot.df$Sub.Annotation,
+                                     levels=rev(cell.order))
+
+ggplot(dot.plot.df,
+       aes(x=Gene, y=Sub.Annotation, colour=AveExprs, size=PropExprs*100)) +
+    geom_point() +
+    theme_cowplot() +
+    scale_colour_gradient(low='grey70', high='blue') +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, colour='black', size=14),
+          axis.text.y=element_text(colour='black', size=14),
+          legend.text=element_text(size=14),
+          legend.title=element_text(size=14),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+    guides(colour=guide_colorbar(title='Mean\nExpression'),
+           size=guide_legend(title='% Express')) +
+    labs(x="Gene", y="Cell type") +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_ext_dotplot-genes.pdf",
+           height=4.65, width=8.95, useDingbats=FALSE)
+```
+
+Plot the cytokine profiles to figure out if Th1/2/17 dominate (or all of them).
+
+```{r, message=FALSE, warning=FALSE, fig.height=4.15, fig.width=7.0}
+cytokine.dot.plot.df <- merge(gene.ave.label.melt, gene.bin.label.melt, by=c('Sub.Annotation', 'Gene'))
+cytokine.dot.plot.df$Gene <- as.character(cytokine.dot.plot.df$Gene)
+
+cytokine.genes <- intersect(c("IL2", "IL1A", "IL1B", "IL10", "IL22",  "TNF", "IFNG", "LTA",
+                              "IL4", "IL5", "IL13", "IL17A", "IL17F", "IL21",
+                              "IL12A", "IL12B", "IL25"), colnames(tcell.prot.merge))
+
+cytokine.dot.plot.df <- cytokine.dot.plot.df[cytokine.dot.plot.df$Gene %in% cytokine.genes, ]
+cytokine.dot.plot.df$Gene <- factor(cytokine.dot.plot.df$Gene,
+                                    levels=cytokine.genes)
+
+cytokine.dot.plot.df <- cytokine.dot.plot.df[cytokine.dot.plot.df$Sub.Annotation %in% cell.order, ]
+cytokine.dot.plot.df$Sub.Annotation <- factor(cytokine.dot.plot.df$Sub.Annotation,
+                                              levels=rev(cell.order))
+
+ggplot(cytokine.dot.plot.df,
+       aes(x=Gene, y=Sub.Annotation, colour=AveExprs, size=PropExprs*100)) +
+    geom_point() +
+    theme_cowplot() +
+    scale_colour_gradient(low='grey70', high='blue') +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, colour='black', size=14),
+          axis.text.y=element_text(colour='black', size=14),
+          legend.text=element_text(size=14),
+          legend.title=element_text(size=14),
+          legend.key.size=unit(0.4, "cm"),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+    guides(colour=guide_colorbar(title='Mean\nExpression'),
+           size=guide_legend(title='% Express')) +
+    labs(x="Cytokine", y="Cell type") +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_ext_dotplot-cytokines.pdf",
+           height=4.65, width=7.0, useDingbats=FALSE)
+```
+
+I want to see how these cytokines change over the course of severity.
+
+```{r, warning=FALSE, message=FALSE}
+cytokine.melt <- melt(tcell.prot.merge[, c("sample_id", "D0_status_summary", "Sub.Annotation", "Collection_Day", "Sex", "Age", "CellID",
+                                           cytokine.genes)],
+                      variable.name="Cytokine", 
+                      id.vars=c("sample_id", "D0_status_summary", "Sub.Annotation", "Collection_Day", "Sex", "Age", "CellID"))
+cytokine.means <- cytokine.melt %>% group_by(D0_status_summary, Sub.Annotation, Cytokine) %>% summarise("Mean.Exprs"=mean(value))
+cytokine.var <- cytokine.melt %>% group_by(D0_status_summary, Sub.Annotation, Cytokine) %>% summarise("Var.Exprs"=var(value))
+cytokine.se <- cytokine.melt %>% group_by(D0_status_summary, Sub.Annotation, Cytokine) %>% summarise("SE.Exprs"=sqrt(var(value))/sqrt(sum(value >= 0)))
+
+cytokine.df <- Reduce(x=list("mean"=cytokine.means, "var"=cytokine.var, "se"=cytokine.se),
+                      f=function(x, y) merge(x, y, by=c('D0_status_summary', 'Sub.Annotation', 'Cytokine')))
+# cytokine.df <- merge(cytokine.df, covid.meta, by='sample_id')
+ 
+# remove superflous or malignant samples
+# cytokine.df <- cytokine.df[!cytokine.df$patient_id %in% c("CV0198"), ]
+# cytokine.df <- cytokine.df[!cytokine.df$sample_id %in% c("BGCV01_CV0902"), ]
+# cytokine.df <- cytokine.df[!cytokine.df$D0_status_summary %in% c("Non_Covid"), ]
+
+cytokine.df$D0_satus_summary <- factor(cytokine.df$D0_status_summary,
+                                       levels=c("Healthy", "Asymptomatic", "Mild",
+                                                "Moderate", "Severe", "Critical", "LPS"))
+```
+
+
+Maybe visualise this as a heatmap?
+
+```{r, fig.height=7.15, fig.width=7.95}
+cytokine.df <- cytokine.df[!cytokine.df$Sub.Annotation %in% c("NK", "ILCs", "Doublets:Bcell", "Doublets", "Doublets:Platelet") &
+                               !is.na(cytokine.df$D0_satus_summary), ]
+
+ggplot(cytokine.df[!cytokine.df$Cytokine %in% c("IL13", "IL22", "IL12A", "IL17A", "IL17F", "IL10", "IL6"), ], 
+       aes(x=D0_satus_summary, y=Cytokine, fill=Mean.Exprs)) +
+    geom_tile() +
+    facet_wrap(~Sub.Annotation) +
+    scale_fill_viridis(option="magma") +
+    theme_cowplot() +
+    guides(fill=guide_colourbar(title="Mean Expression")) +
+    labs(y="Cytokine Gene", x="Severity") +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1),
+          strip.background=element_rect(fill='white', colour='white')) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_cytokines_heatmap.pdf",
+           height=7.15, width=7.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+What about exhaustion markers?
+
+
+```{r, warning=FALSE, message=FALSE}
+exhaustion.genes <- c("TOX", "TIGIT", "LAG3", "HAVCR2", "PDCD1", "FOXP3", "MKI67")
+exhaustion.melt <- melt(tcell.prot.merge[, c("sample_id", "D0_status_summary", "Sub.Annotation", "Collection_Day", "Sex", "Age", "CellID",
+                                           exhaustion.genes)],
+                      variable.name="Gene", 
+                      id.vars=c("sample_id", "D0_status_summary", "Sub.Annotation", "Collection_Day", "Sex", "Age", "CellID"))
+exhaustion.means <- exhaustion.melt %>% group_by(D0_status_summary, Sub.Annotation, Gene) %>% summarise("Mean.Exprs"=mean(value))
+exhaustion.var <- exhaustion.melt %>% group_by(D0_status_summary, Sub.Annotation, Gene) %>% summarise("Var.Exprs"=var(value))
+exhaustion.se <- exhaustion.melt %>% group_by(D0_status_summary, Sub.Annotation, Gene) %>% summarise("SE.Exprs"=sqrt(var(value))/sqrt(sum(value >= 0)))
+
+exhaustion.df <- Reduce(x=list("mean"=exhaustion.means, "var"=exhaustion.var, "se"=exhaustion.se),
+                      f=function(x, y) merge(x, y, by=c('D0_status_summary', 'Sub.Annotation', 'Gene')))
+# exhaustion.df <- merge(exhaustion.df, covid.meta, by='sample_id')
+ 
+# remove superflous or malignant samples
+# exhaustion.df <- exhaustion.df[!exhaustion.df$patient_id %in% c("CV0198"), ]
+# exhaustion.df <- exhaustion.df[!exhaustion.df$sample_id %in% c("BGCV01_CV0902"), ]
+# exhaustion.df <- exhaustion.df[!exhaustion.df$D0_status_summary %in% c("Non_Covid"), ]
+
+exhaustion.df$D0_satus_summary <- factor(exhaustion.df$D0_status_summary,
+                                       levels=c("Healthy", "Asymptomatic", "Mild",
+                                                "Moderate", "Severe", "Critical", "LPS"))
+```
+
+
+```{r, fig.height=7.15, fig.width=7.95}
+exhaustion.df <- exhaustion.df[!exhaustion.df$Sub.Annotation %in% c("NK", "ILCs", "Doublets:Bcell", "Doublets", "Doublets:Platelet") &
+                               !is.na(exhaustion.df$D0_satus_summary), ]
+
+ggplot(exhaustion.df[!exhaustion.df$Gene %in% c("IL13", "IL22", "IL12A", "IL17A", "IL17F"), ], 
+       aes(x=D0_satus_summary, y=Gene, fill=Mean.Exprs)) +
+    geom_tile() +
+    facet_wrap(~Sub.Annotation) +
+    scale_fill_viridis(option="magma") +
+    theme_cowplot() +
+    guides(fill=guide_colourbar(title="Mean Expression")) +
+    labs(x="Severity", "Gene") +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1),
+          strip.background=element_rect(fill='white', colour='white')) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_exhaustion_heatmap.pdf",
+           height=7.15, width=7.95, useDingbats=FALSE) +
+    NULL
+```
+
+Do the same for the proteins.
+
+```{r, warning=FALSE, message=FALSE}
+clust.model.matrix <- model.matrix(~ 0 + Sub.Annotation, data=tcell.prot.merge)
+rownames(clust.model.matrix) <- tcell.prot.merge$CellID
+
+goi.by.cluster <- t(clust.model.matrix) %*% as.matrix(tcell.prot.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")])
+ave.by.label <- as.data.frame(apply(goi.by.cluster, 2, function(X) X/colSums(clust.model.matrix)))
+rownames(ave.by.label) <- gsub(rownames(ave.by.label), pattern="Sub\\.Annotation", replacement="")
+colnames(ave.by.label) <- gsub(colnames(ave.by.label), pattern="Prot\\.", replacement="")
+
+goi.by.cluster.bin <- t(clust.model.matrix) %*% as.matrix(tcell.prot.merge[, gsub(setdiff(colnames(prot.df), colnames(tcell.merge)),
+                                                                              pattern="\\.x", replacement="")] > 0.01)
+bin.by.label <- as.data.frame(apply(goi.by.cluster.bin, 2, function(X) X/sum(X)))
+bin.by.label[is.na(bin.by.label)] <- 0
+rownames(bin.by.label) <- gsub(rownames(bin.by.label), pattern="Sub\\.Annotation", replacement="")
+colnames(bin.by.label) <- gsub(colnames(bin.by.label), pattern="Prot\\.", replacement="")
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+ave.label.df <- as.data.frame(apply(ave.by.label, 2, FUN=function(XP) (XP-min(XP))/max(XP-min(XP))))
+ave.label.df$Sub.Annotation <- rownames(ave.label.df)
+ave.label.melt <- melt(ave.label.df, id.vars='Sub.Annotation')
+colnames(ave.label.melt) <- c("Sub.Annotation", "Protein", "AveExprs")
+
+bin.label.df <- bin.by.label
+bin.label.df$Sub.Annotation <- rownames(bin.label.df)
+bin.label.melt <- melt(bin.label.df, id.vars='Sub.Annotation')
+colnames(bin.label.melt) <- c("Sub.Annotation", "Protein", "PropExprs")
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=5.15, fig.width=8.95}
+protein.dot.plot.df <- merge(ave.label.melt, bin.label.melt, by=c('Sub.Annotation', 'Protein'))
+protein.dot.plot.df$Protein <- as.character(protein.dot.plot.df$Protein)
+
+dot.plot.prots <- c("CD3", "CD8", "CD4", "CCR7", "CD45RA", "CD45RO", "CD28", "CD27", "CTLA4", "CD56", "CD16", "ICOSL",
+                    "CD274", "CXCR3", "CD40LG", "CD38", "ICOS", "PD1", "CD25", "LAMP1", "CXCR3", "CCR6", "IL7R", 
+                    "CXCR5", "TCR_Va7.2", "TCR_Vg2", "TCR_Vg9", "TCR_Va24-Ja18", "CD62L", "CD44", "TCR_Va24.Ja18")
+
+protein.order <- c("CD3", "CD4", "CCR7", "CD45RA", "CD45RO", "CD27", "CD28", "CD62L", "CD25", "CTLA4",
+                   "LAMP1", "CCR6", "IL7R", 
+                   "CXCR5", "CD40LG", "ICOS", "CXCR3", "CD8", "PD1", "CD274", "TCR_Vg9", "TCR_Vg2",
+                   "TCR_Va7.2", "TCR_Va24.Ja18", "CD56", "CD16")
+
+protein.dot.plot.df <- protein.dot.plot.df[protein.dot.plot.df$Protein %in% dot.plot.prots, ]
+protein.dot.plot.df$Protein <- factor(protein.dot.plot.df$Protein,
+                                      levels=protein.order)
+
+protein.dot.plot.df <- protein.dot.plot.df[!protein.dot.plot.df$Sub.Annotation %in% c("NK", "ILCs", 
+                                                                                     "Doublets:Platelet", "Doublets", "Doublets:Bcell"), ]
+protein.dot.plot.df$Sub.Annotation <- factor(protein.dot.plot.df$Sub.Annotation,
+                                             levels=rev(cell.order))
+
+ggplot(protein.dot.plot.df, 
+       aes(x=Protein, y=Sub.Annotation, colour=AveExprs, size=PropExprs*100)) +
+    geom_point() +
+    theme_cowplot() +
+    scale_colour_gradient(low='grey70', high=darken('red')) +
+     theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, colour='black', size=14),
+          axis.text.y=element_text(colour='black', size=14),
+          legend.text=element_text(size=14),
+          legend.title=element_text(size=14),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+          panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+    guides(colour=guide_colorbar(title='Mean\nExpression'),
+           size=guide_legend(title='% Express')) +
+    labs(x="Protein", y="Cell type") +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_ext_dotplot-protein.pdf",
+           height=5.15, width=8.95, useDingbats=FALSE)
+```
+
+I also want to see some of the CD8 sub-phenotype mRNA and protein expression, namely _KLRG1_ and _CD217_ (_IL7R_).
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.95, fig.width=11.95}
+repeat.samps <- covid.meta$patient_id[duplicated(covid.meta$patient_id)]
+cell.freq.merge$Day <- ordered(cell.freq.merge$Collection_Day,
+                               levels=c("D0", "D7", "D9", "D12", "D13", "D28"))
+
+ggplot(cell.freq.merge[cell.freq.merge$patient_id %in% repeat.samps &
+                           !cell.freq.merge$CellType %in% c("NK", "Prolif.NK", "ILCs", "Doublets:Bcell", "Doublets:Platelet", "Doublets") &
+                           !cell.freq.merge$D0_status_summary %in% c("Non_covid", "LPS"), ],
+       aes(x=Day, y=Freq, fill=D0_status_summary, group=patient_id)) +
+    #geom_boxplot() +
+    geom_line(aes(colour=D0_status_summary)) +
+    geom_point(shape=21, size=3) +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y") +
+    scale_fill_manual(values=group.cols) +
+    scale_colour_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    labs(x="Day", y="Proportion") +
+    guides(fill=guide_legend(title="Severity")) +
+    # ggsave("~/Dropbox/COVID19/plot.dir/Tcells_proportions-boxplot.pdf",
+    #        height=5.95, width=11.15, useDingbats=FALSE) +
+     NULL
+```
+
+
+Correlate T cell and B cell proportions.
+
+```{r}
+initial.clusts <- read.table("~/Dropbox/COVID19/Data/combined_dec_MetaData.txt",
+                             sep="\t", header=TRUE, stringsAsFactors=FALSE)
+```
+
+```{r}
+bcell.nums <- read.csv("~/Dropbox/COVID19/Data/B_cellnumbers_by_sample_id.csv",
+                       header=TRUE, stringsAsFactors=FALSE)
+rownames(bcell.nums) <- bcell.nums$sample_id
+bcell.nums <- bcell.nums[, -1]
+
+# add an aggreated plasmacell column
+bcell.nums$Plasmacell <- rowSums(bcell.nums[, c("Plasma_cell_IgM", "Plasma_cell_IgA", "Plasma_cell_IgG")])
+bcell.nums <- bcell.nums[intersect(rownames(bcell.nums), names(n.cell.vecc)), ]
+# b.cell.nums <- as.data.frame(t(sapply(rownames(bcell.nums), FUN=function(X) bcell.nums[X, ]/n.cell.vecc[X])))
+
+# bcell.nums <- as.data.frame(t(apply(bcell.nums, 1, function(X) X/sum(X))))
+bcell.nums$sample_id <- rownames(bcell.nums)
+bcell.num.df <- melt(bcell.nums, id.vars='sample_id')
+bcell.num.df$sample_id <- as.character(bcell.num.df$sample_id)
+bcell.num.df$variable <- as.character(bcell.num.df$variable)
+colnames(bcell.num.df) <- c("sample_id", "Celltype", "Freq")
+#bcell.num.df <- bcell.num.df[bcell.num.df$Celltype %in% c("B_cell", "Plasmablast"), ]
+
+bcell.num.cast <- dcast(bcell.num.df, sample_id ~ Celltype, value.var='Freq')
+rownames(bcell.num.cast) <- bcell.num.cast$sample_id
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+tcell.freq.tab <- table(tcell.prot.merge$sample_id[!tcell.prot.merge$Sub.Annotation %in% c("NK", "ILCs", "Doublets", "Doublets:Bcell", "Doublets:Platelet")],
+                        tcell.prot.merge$Sub.Annotation[!tcell.prot.merge$Sub.Annotation %in% c("NK", "ILCs", "Doublets", "Doublets:Bcell", "Doublets:Platelet")])
+tcell.freq.tab <- as.data.frame(tcell.freq.tab[!rownames(tcell.freq.tab) %in%
+                                                   c("NK", "ILCs", "Doublets", "Doublets:Bcell", "Doublets:Platelet"), ])
+tcell.nums <- dcast(tcell.freq.tab, Var1 ~ Var2, value.var='Freq')
+
+colnames(tcell.nums) <- c("sample_id", colnames(tcell.nums)[-1])
+
+tcell.bcell.nums <- merge(tcell.nums, bcell.num.cast, by='sample_id')
+rownames(tcell.bcell.nums) <- tcell.bcell.nums$sample_id
+tcell.bcell.nums <- as.matrix(tcell.bcell.nums[, -1])
+
+tcell.bcell.props <- sapply(rownames(tcell.bcell.nums), FUN=function(X) as.numeric(tcell.bcell.nums[X, ]/n.cell.vecc[X]),
+                                        simplify=TRUE)
+rownames(tcell.bcell.props) <- colnames(tcell.bcell.nums)
+```
+
+Cross-compare the T and B cell proportions.
+
+```{r, fig.height=5.95, fig.width=6.95}
+bcell.types <- colnames(bcell.num.cast)[-1]
+tcell.bcell.corr <- cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), ]))
+pheatmap(tcell.bcell.corr, show_rownames=TRUE, show_colnames=TRUE,
+         filename="~/Dropbox/COVID19/plot.dir/Tcell_Bcell_corr_heatmap.pdf",
+         height=5.95, width=6.95, useDingbats=FALSE)
+
+pheatmap(tcell.bcell.corr, show_rownames=TRUE, show_colnames=TRUE)
+```
+
+How different is this for each severity group, or final outcome?
+
+```{r, fig.height=5.95, fig.width=6.95}
+control.samps <- covid.meta$sample_id[covid.meta$D0_status_summary %in% c("Healthy")]
+asymp.samps <- covid.meta$sample_id[covid.meta$D0_status_summary %in% c("Asymptomatic")]
+mild.samps <- covid.meta$sample_id[covid.meta$D0_status_summary %in% c("Mild")]
+mod.samps <- covid.meta$sample_id[covid.meta$D0_status_summary %in% c("Moderate")]
+severe.samps <- covid.meta$sample_id[covid.meta$D0_status_summary %in% c("Severe")]
+critical.samps <- covid.meta$sample_id[covid.meta$D0_status_summary %in% c("Critical")]
+```
+
+Differential correlation? Should I do this across samples, ranked by severity?  
+
+```{r, warning=FALSE, message=FALSE}
+library(DCARS)
+library(kableExtra)
+library(knitr)
+covid.meta$OrderedSeverity <- factor(covid.meta$D0_status_summary,
+                                     levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+samp.order <- covid.meta[order(covid.meta$OrderedSeverity[!is.na(covid.meta$OrderedSeverity)]),]$sample_id
+
+bcell.tcell.dcars <- sapply(c(bcell.types, "CD4.Tfh"), FUN=function(XT) 
+    DCARS(dat=tcell.bcell.props[c(bcell.types, "CD4.Tfh"), intersect(colnames(tcell.bcell.props), samp.order)],
+          xname=XT, yname="CD4.Tfh", plot=FALSE, niter=10000,
+          extractPermutationTestStatistics=FALSE))
+bcell.tcell.dcars.adjust <- p.adjust(bcell.tcell.dcars)
+bcell.tcell.dcars.table <- data.frame("Pvalue"=bcell.tcell.dcars)
+
+kbl(bcell.tcell.dcars.table) %>% kable_paper(full_width=FALSE) %>%
+    save_kable("~/Dropbox/COVID19/plot.dir/DiffCor_Bcell-Tfh_props.pdf",
+               self_contained=TRUE, keep_tex=TRUE)
+kbl(bcell.tcell.dcars.table) %>% kable_paper(full_width=FALSE) %>%
+    save_kable("~/Dropbox/COVID19/plot.dir/DiffCor_Bcell-Tfh_props.html",
+               self_contained=TRUE)
+
+kbl(bcell.tcell.dcars.table) %>% kable_paper(full_width=FALSE)
+```
+
+These are the differential correlations between CD4.Tfh cells and B cell proportions across severity groups. Plot the correlation difference 
+between asymptomatic and severe, or plot the correlation across all severity groups for each cell type?
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, width=3.95}
+bcell.cors.list <- list("Healthy"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% control.samps]))["CD4.Tfh", ],
+                        "Asymptomatic"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% asymp.samps]))["CD4.Tfh", ],
+                        "Mild"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% mild.samps]))["CD4.Tfh", ],
+                        "Moderate"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% mod.samps]))["CD4.Tfh", ],
+                        "Severe"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% severe.samps]))["CD4.Tfh", ],
+                        "Critical"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% critical.samps]))["CD4.Tfh", ])
+
+bcell.cors.df <- do.call(cbind.data.frame, bcell.cors.list)
+bcell.cors.df$CellType <- rownames(bcell.cors.df)
+bcell.cors.melt <- melt(bcell.cors.df, id.vars=c("CellType"))
+bcell.cors.melt$CellType <- as.character(bcell.cors.melt$CellType)
+colnames(bcell.cors.melt) <- c("CellType", "Severity", "Corr")
+bcell.cors.melt$Severity <- factor(bcell.cors.melt$Severity,
+                                   levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+# maybe only plot the significant diff correlations.
+diff.cors <- names(bcell.tcell.dcars)[bcell.tcell.dcars <= 0.05]
+
+plasma.cols <- c("#49006a", "#ae017e", "#d4b9da", "#fa9fb5", "blue")
+names(plasma.cols) <- c("Plasmablast", "Plasma_cell_IgM", "Plasma_cell_IgG", "Plasma_cell_IgA")
+
+ggplot(bcell.cors.melt[bcell.cors.melt$CellType %in% diff.cors, ], 
+       aes(x=Severity, y=Corr, fill=CellType, colour=CellType, group=CellType)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80', alpha=0.75) +
+    geom_line() +
+    geom_point(shape=21, size=3) +
+    scale_fill_manual(values=plasma.cols) +
+    scale_colour_manual(values=plasma.cols) +
+    theme_cowplot() +
+    theme(axis.text.x=element_text(size=14, angle=90, vjust=0.5, hjust=1)) +
+    labs(x="Severity", y="Pearson\nCorrelation") +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tfh_diff_corr.pdf",
+           height=2.95, width=3.95, useDingbats=FALSE) +
+    NULL
+    
+```
+
+
+Also have the Ig isotypes from Kelvin to correlate.
+
+```{r, warning=FALSE, message=FALSE}
+ig.isotypes <- read.csv("~/Dropbox/COVID19/Data/vdj_isotypes (1).csv",
+                        header=TRUE, stringsAsFactors=FALSE)
+isotype.counts <- dcast(ig.isotypes, sample_id ~ celltype + isotype, value.var='total')
+isotype.counts[is.na(isotype.counts)] <- 0
+rownames(isotype.counts) <- isotype.counts$sample_id
+isotype.counts <- isotype.counts[, -1]
+isotype.counts <- isotype.counts[intersect(rownames(isotype.counts), names(n.cell.vecc)), ]
+
+bcell.counts <- rowSums(bcell.nums[, -ncol(bcell.nums)])
+
+isotype.counts.props <- t(sapply(rownames(isotype.counts), FUN=function(X) as.numeric(isotype.counts[X, ]/n.cell.vecc[X]),
+                                 simplify=TRUE))
+colnames(isotype.counts.props) <- colnames(isotype.counts)
+```
+
+
+```{r}
+tcell.bcell.df <- as.data.frame(tcell.bcell.nums)
+tcell.bcell.df$sample_id <- rownames(tcell.bcell.nums)
+isotype.counts.props <- as.data.frame(isotype.counts.props)
+isotype.counts.props$sample_id <- rownames(isotype.counts.props)
+
+tcell.isotype.df <- merge(isotype.counts.props, tcell.bcell.df[, colnames(tcell.nums)], by='sample_id')
+rownames(tcell.isotype.df) <- tcell.isotype.df$sample_id
+```
+
+
+```{r, fig.height=9.95, fig.width=9.95}
+isotypes <- colnames(isotype.counts)
+tcell.isotype.corr <- cor(tcell.isotype.df[, c(isotypes, "CD4.Tfh")])
+pheatmap(tcell.isotype.corr, show_rownames=TRUE, show_colnames=TRUE,
+         filename="~/Dropbox/COVID19/plot.dir/Tcell_isotype_corr_heatmap.pdf",
+         height=5.95, width=6.95, useDingbats=FALSE)
+
+pheatmap(tcell.isotype.corr, show_rownames=TRUE, show_colnames=TRUE)
+```
+
+
+Differential correlation? Should I do this across samples, ranked by severity?  
+
+```{r, warning=FALSE, message=FALSE}
+# need to remove all 0 rows
+isotype.dat <- t(tcell.isotype.df[intersect(rownames(tcell.isotype.df), samp.order), c(isotypes, "CD4.Tfh")])
+isotype.dat <- isotype.dat[rowSums(isotype.dat)> 1e-2, ]
+
+isotype.tcell.dcars <- sapply(rownames(isotype.dat), FUN=function(XT)
+    DCARS(dat=isotype.dat,
+          xname=XT, yname="CD4.Tfh", plot=FALSE, niter=10000,
+          extractPermutationTestStatistics=FALSE))
+
+isotype.tcell.dcars.table <- data.frame("Pvalue"=isotype.tcell.dcars)
+kbl(isotype.tcell.dcars.table) %>% kable_paper(full_width=FALSE) %>%
+    save_kable("~/Dropbox/COVID19/plot.dir/DiffCor_Isotype-Tfh_props.pdf",
+               self_contained=TRUE, keep_tex=TRUE)
+kbl(isotype.tcell.dcars.table) %>% kable_paper(full_width=FALSE) %>%
+    save_kable("~/Dropbox/COVID19/plot.dir/DiffCor_Isotype-Tfh_props.html",
+               self_contained=TRUE)
+
+kbl(isotype.tcell.dcars.table) %>% kable_paper(full_width=FALSE)
+```
+
+These are the differential correlations between CD4.Tfh cells and B cell proportions across severity groups. Plot the correlation difference 
+between asymptomatic and severe, or plot the correlation across all severity groups for each cell type?
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, width=3.95}
+isotype.cors.list <- list("Healthy"=cor(tcell.isotype.df[intersect(rownames(tcell.isotype.df), control.samps), c(isotypes, "CD4.Tfh")])[, c("CD4.Tfh")],
+                        "Asymptomatic"=cor(tcell.isotype.df[intersect(rownames(tcell.isotype.df), asymp.samps), c(isotypes, "CD4.Tfh")])[, c("CD4.Tfh")],
+                        "Mild"=cor(tcell.isotype.df[intersect(rownames(tcell.isotype.df), mild.samps), c(isotypes, "CD4.Tfh")])[, c("CD4.Tfh")],
+                        "Moderate"=cor(tcell.isotype.df[intersect(rownames(tcell.isotype.df), mod.samps), c(isotypes, "CD4.Tfh")])[, c("CD4.Tfh")],
+                        "Severe"=cor(tcell.isotype.df[intersect(rownames(tcell.isotype.df), severe.samps), c(isotypes, "CD4.Tfh")])[, c("CD4.Tfh")],
+                        "Critical"=cor(tcell.isotype.df[intersect(rownames(tcell.isotype.df), critical.samps), c(isotypes, "CD4.Tfh")])[, c("CD4.Tfh")])
+
+isotype.cors.df <- do.call(cbind.data.frame, isotype.cors.list)
+isotype.cors.df$CellType <- rownames(isotype.cors.df)
+isotype.cors.melt <- melt(isotype.cors.df, id.vars=c("CellType"))
+isotype.cors.melt$CellType <- as.character(isotype.cors.melt$CellType)
+colnames(isotype.cors.melt) <- c("CellType", "Severity", "Corr")
+isotype.cors.melt$Severity <- gsub(isotype.cors.melt$Severity,
+                                   pattern="^([A-Za-z]+)\\.(\\S*)", replacement="\\1")
+isotype.cors.melt$Severity <- factor(isotype.cors.melt$Severity,
+                                   levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+# maybe only plot the significant diff correlations.
+diff.cors <- names(isotype.tcell.dcars)[isotype.tcell.dcars <= 0.05]
+
+ggplot(isotype.cors.melt[isotype.cors.melt$CellType %in% setdiff(diff.cors, "CD4.Tfh"), ],
+       aes(x=Severity, y=Corr, fill=CellType, colour=CellType, group=CellType)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80', alpha=0.75) +
+    geom_line() +
+    geom_point(shape=21, size=3) +
+    # scale_fill_manual(values=plasma.cols) +
+    # scale_colour_manual(values=plasma.cols) +
+    scale_fill_aaas() +
+    scale_colour_aaas() +
+    theme_cowplot() +
+    theme(axis.text.x=element_text(size=14, angle=90, vjust=0.5, hjust=1)) +
+    labs(x="Severity", y="Pearson\nCorrelation") +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tfh_Isotype-diff_corr.pdf",
+           height=2.95, width=3.95, useDingbats=FALSE) +
+    NULL
+```
+
+
