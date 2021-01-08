@@ -1,0 +1,624 @@
+---
+title: "COVID19: T cell lineage-specific UMAPs"
+output: html_notebook
+---
+
+Plotting of different UMAPs calculated on CD4 and CD8 cell separately based on:
+
+* T cell specific Harmony-corrected PCs
+* Gender-regressed T cell specific MNN-corrected PCs
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggsci)
+library(cowplot)
+library(scattermore)
+library(RColorBrewer)
+library(reshape2)
+library(colorspace)
+library(dplyr)
+library(ggthemes)
+library(scales)
+library(ggrepel)
+library(viridis)
+library(ggrastr)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+all.meta <- read.table("~/Dropbox/COVID19/Data/COVID19_scMeta-data.tsv",
+                       sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(all.meta) <- all.meta$CellID
+
+tcell.annotations <- read.table("~/Dropbox/COVID19/Data/Tcell_annotations_ext.tsv",
+                                sep="\t", header=TRUE, stringsAsFactors=FALSE)
+all.meta <- merge(all.meta, tcell.annotations, by='CellID')
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+cd4.gender.umap <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle_Tcell-CD4-Gender_UMAPs.tsv",
+                              sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+cd8.gender.umap <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle_Tcell-CD8-Gender_UMAPs.tsv",
+                              sep="\t", header=TRUE, stringsAsFactors=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+cd4.harmony.umap <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle-Tcell-CD4_Tharmony_UMAPs.tsv",
+                               sep="\t", header=TRUE, stringsAsFactors=FALSE)
+colnames(cd4.harmony.umap) <- c("Harmony.UMAP1", "Harmony.UMAP2", "CellID")
+
+cd8.harmony.umap <- read.table("~/Dropbox/COVID19/Data/Cambridge_Sanger_Newcastle-Tcell-CD8_Tharmony_UMAPs.tsv",
+                               sep="\t", header=TRUE, stringsAsFactors=FALSE)
+colnames(cd8.harmony.umap) <- c("Harmony.UMAP1", "Harmony.UMAP2", "CellID")
+```
+
+
+```{r}
+cell.order <- c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Tfh",
+                "Treg", "CD8.Naive", "CD8.Activated", "CD8.Prolif", "CD8.CM", "CD8.TE", "CD8.EM", "gdT", "MAIT", "NKT")
+
+all.qual.cols <- brewer.pal.info[brewer.pal.info$category %in% c("qual") & brewer.pal.info$colorblind, ]
+col_vector = unlist(mapply(brewer.pal, all.qual.cols$maxcolors, rownames(all.qual.cols)))
+
+# cell.cols <- col_vector[c(1:7, 9:19)]
+cell.cols <- col_vector[c(1:17, 19, 20)]
+names(cell.cols) <- cell.order
+```
+
+
+
+```{r}
+cd4.tcell.umap <- merge(cd4.gender.umap, cd4.harmony.umap, by='CellID')
+cd4.tcell.umap.merge <- merge(all.meta, cd4.tcell.umap, by='CellID')
+
+cd8.tcell.umap <- merge(cd8.gender.umap, cd8.harmony.umap, by='CellID')
+cd8.tcell.umap.merge <- merge(all.meta, cd8.tcell.umap, by='CellID')
+
+cd4.tcell.umap.merge$Sub.Annotation <- factor(cd4.tcell.umap.merge$Sub.Annotation,
+                                              levels=cell.order)
+
+cd8.tcell.umap.merge$Sub.Annotation <- factor(cd8.tcell.umap.merge$Sub.Annotation,
+                                              levels=cell.order)
+
+group.cols <- c("#2ca02c", "#1f77b4", "#9467bd", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#252525")
+names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+```
+
+
+
+```{r, fig.height=4.35, fig.width=10.95}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2)) +
+    geom_scattermore(data=cd8.tcell.umap.merge[, c("Gender.UMAP1", "Gender.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_scattermore(aes(colour=Site), pointsize=0.5) +
+    scale_colour_tron() +
+    facet_wrap(~Site) +
+    theme_cowplot() +
+    theme(strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=14)) +
+    guides(colour=guide_legend(title="Batch", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-UMAP-site.pdf",
+           height=4.35, width=10.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Sub.Annotation)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-UMAP-annotation.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Sex)) +
+    geom_scattermore(pointsize=0.5) +
+     scale_colour_colorblind() +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-UMAP_GenderRegress-gender.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=D0_status_summary)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_manual(values=group.cols) +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-UMAP_GenderRegress-severity.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Smoker)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_aaas() +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-UMAP_GenderRegress-ethnicity.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Age)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_gradient(low="blue", high="orange") +
+    theme_cowplot() +
+    guides(colour=guide_colourbar(title="Age")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-UMAP_GenderRegress-age.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+The same for the CD4 T cells.
+
+```{r, fig.height=4.35, fig.width=10.95}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2)) +
+    geom_scattermore(data=cd4.tcell.umap.merge[, c("Gender.UMAP1", "Gender.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_scattermore(aes(colour=Site), pointsize=0.5) +
+    scale_colour_tron() +
+    facet_wrap(~Site) +
+    theme_cowplot() +
+    theme(strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=14)) +
+    guides(colour=guide_legend(title="Batch", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-UMAP-site.pdf",
+           height=4.35, width=10.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Sub.Annotation)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-UMAP-annotation.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Sex)) +
+    geom_scattermore(pointsize=0.5) +
+     scale_colour_colorblind() +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-UMAP_GenderRegress-gender.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=D0_status_summary)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_manual(values=group.cols) +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Severity", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-UMAP_GenderRegress-severity.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Smoker)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_aaas() +
+    theme_cowplot() +
+    guides(colour=guide_legend(title="Smoking", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-UMAP_GenderRegress-ethnicity.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Gender.UMAP1, y=Gender.UMAP2, colour=Age)) +
+    geom_scattermore(pointsize=0.5) +
+    scale_colour_gradient(low="blue", high="orange") +
+    theme_cowplot() +
+    guides(colour=guide_colourbar(title="Age")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-UMAP_GenderRegress-age.pdf",
+           height=3.55, width=5.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+## Harmony UMAPs
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(aes(colour=Sub.Annotation), pointsize=0.5) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    labs(x="UMAP1", y="UMAP2") +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-Harmony-UMAP_annotation.pdf",
+           height=3.55, width=5.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, fig.height=4.35, fig.width=10.95}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(data=cd8.tcell.umap.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_scattermore(aes(colour=Site), pointsize=0.5) +
+    scale_colour_tron() +
+    facet_wrap(~Site) +
+    theme_cowplot() +
+    theme(strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=14)) +
+    guides(colour=guide_legend(title="Batch", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-Harmony-UMAP-site.pdf",
+           height=4.35, width=10.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, fig.height=10.95, fig.width=10.95}
+ggplot(cd8.tcell.umap.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+     geom_scattermore(data=cd8.tcell.umap.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_scattermore(aes(colour=Sub.Annotation), pointsize=1) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    facet_wrap(~Sub.Annotation) +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-Harmony-UMAP-annotation.pdf",
+           height=10.95, width=10.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r}
+get_density <- function(x, y, ...) {
+  dens <- MASS::kde2d(x, y, ...)
+  ix <- findInterval(x, dens$x)
+  iy <- findInterval(y, dens$y)
+  ii <- cbind(ix, iy)
+  return(dens$z[ii])
+}
+
+cd8.dens.umap.list <- list()
+loop.cells <- intersect(cell.order, unique(as.character(cd8.tcell.umap.merge$Sub.Annotation)))
+
+for(i in seq_along(loop.cells)){
+    i.c <- loop.cells[i]
+    # change this to 1% of all cells
+    i.n <- ceiling(sum(cd8.tcell.umap.merge$Sub.Annotation %in% i.c)/100)
+    if(i.n < 50){
+      i.n <- 50
+    }
+    i.dens <- get_density(cd8.tcell.umap.merge$Harmony.UMAP1[cd8.tcell.umap.merge$Sub.Annotation %in% i.c],
+                          cd8.tcell.umap.merge$Harmony.UMAP2[cd8.tcell.umap.merge$Sub.Annotation %in% i.c], n=i.n)
+    
+    cd8.dens.umap.list[[i.c]] <- data.frame("Sub.Annotation"=i.c,
+                                        "CellID"=cd8.tcell.umap.merge$CellID[cd8.tcell.umap.merge$Sub.Annotation %in% i.c],
+                                        "Dens"=i.dens)
+}
+
+cd8.umap.dens <- do.call(rbind.data.frame, cd8.dens.umap.list)
+cd8.dens.merge <- merge(cd8.tcell.umap.merge, cd8.umap.dens, by=c('Sub.Annotation', 'CellID'))
+```
+
+
+```{r, fig.height=6.95, fig.width=8.95}
+ggplot(cd8.dens.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+  geom_scattermore(data=cd8.dens.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                   colour='grey80', alpha=0.2) +
+  geom_scattermore(aes(colour=Dens), pointsize=0.5) +
+  scale_colour_viridis() +
+  labs(x="UMAP1", y="UMAP2") +
+  theme_cowplot() +
+  facet_wrap(~Sub.Annotation) +
+  guides(colour=guide_colourbar(title="Cell type density")) +
+  ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8-Harmony-UMAP-density_annotation.pdf",
+         height=6.95, width=8.95, useDingbats=FALSE) +
+  NULL
+```
+
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(aes(colour=Sub.Annotation), pointsize=0.5) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    labs(x="UMAP1", y="UMAP2") +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-Harmony-UMAP_annotation.pdf",
+           height=3.55, width=5.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, fig.height=4.35, fig.width=10.95}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(data=cd4.tcell.umap.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_scattermore(aes(colour=Site), pointsize=0.5) +
+    scale_colour_tron() +
+    facet_wrap(~Site) +
+    theme_cowplot() +
+    theme(strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=14)) +
+    guides(colour=guide_legend(title="Batch", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-Harmony-UMAP-site.pdf",
+           height=4.35, width=10.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, fig.height=10.95, fig.width=10.95}
+ggplot(cd4.tcell.umap.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+     geom_scattermore(data=cd4.tcell.umap.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_scattermore(aes(colour=Sub.Annotation), pointsize=1) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    facet_wrap(~Sub.Annotation) +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-Harmony-UMAP-annotation.pdf",
+           height=10.95, width=10.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r}
+cd4.dens.umap.list <- list()
+loop.cells <- intersect(cell.order, unique(as.character(cd4.tcell.umap.merge$Sub.Annotation)))
+
+for(i in seq_along(loop.cells)){
+    i.c <- loop.cells[i]
+    # change this to 1% of all cells
+    i.n <- ceiling(sum(cd4.tcell.umap.merge$Sub.Annotation %in% i.c)/100)
+    if(i.n < 50){
+      i.n <- 50
+    }
+    i.dens <- get_density(cd4.tcell.umap.merge$Harmony.UMAP1[cd4.tcell.umap.merge$Sub.Annotation %in% i.c],
+                          cd4.tcell.umap.merge$Harmony.UMAP2[cd4.tcell.umap.merge$Sub.Annotation %in% i.c], n=i.n)
+    
+    cd4.dens.umap.list[[i.c]] <- data.frame("Sub.Annotation"=i.c,
+                                        "CellID"=cd4.tcell.umap.merge$CellID[cd4.tcell.umap.merge$Sub.Annotation %in% i.c],
+                                        "Dens"=i.dens)
+}
+
+cd4.umap.dens <- do.call(rbind.data.frame, cd4.dens.umap.list)
+cd4.dens.merge <- merge(cd4.tcell.umap.merge, cd4.umap.dens, by=c('Sub.Annotation', 'CellID'))
+```
+
+
+```{r, fig.height=6.95, fig.width=8.95}
+ggplot(cd4.dens.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+  geom_scattermore(data=cd4.dens.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                   colour='grey80', alpha=0.5) +
+  geom_scattermore(aes(colour=Dens), pointsize=2) +
+  scale_colour_viridis() +
+  labs(x="UMAP1", y="UMAP2") +
+  theme_cowplot() +
+  facet_wrap(~Sub.Annotation) +
+  guides(colour=guide_colourbar(title="Cell type density")) +
+  ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD4-Harmony-UMAP-density_annotation.pdf",
+         height=6.95, width=8.95, useDingbats=FALSE) +
+  NULL
+```
+
+
+```{r, fig.height=10.95, fig.width=12.95}
+# generate a series of PDFs, one for each cell type
+cd4.cell.order <- c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Tfh", "Treg")
+for(x in seq_along(cd4.cell.order)){
+  x.c <- cd4.cell.order[x]
+  
+  ggplot(cd4.dens.merge,
+         aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(data=cd4.dens.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_scattermore(data=cd4.dens.merge[cd4.dens.merge$Sub.Annotation %in% x.c, ],
+                    aes(colour=Dens), pointsize=3.1) +
+    scale_colour_viridis() +
+    labs(x="UMAP1", y="UMAP2") +
+    theme_cowplot() +
+    guides(colour=guide_colourbar(title="Density")) +
+    theme(legend.key.size = unit(0.2, "cm"),
+          axis.text=element_blank(),
+          legend.title=element_text(size=8),
+          legend.text=element_blank()) +
+    ggsave(paste0("~/Dropbox/COVID19/plot.dir/Tcell_CD4-Harmony-UMAP-", x.c, "_density_annotation.pdf"),
+           height=1.55, width=2.95, useDingbats=FALSE) +
+  NULL
+}
+
+```
+
+Switch back to the original UMAP, but split the visualisation by CD4/CD8.
+
+
+```{r, warning=FALSE, message=FALSE}
+harmony.umap <- read.table("~/Dropbox/COVID19/Data/COVID_Harmony_UMAP_OnlyT_TonlyHVGs.csv",
+                           sep=",", header=FALSE, stringsAsFactors=FALSE)
+colnames(harmony.umap) <- c("CellID", "Harmony.UMAP1", "Harmony.UMAP2")
+harmony.umap.merge <- merge(harmony.umap, all.meta, by='CellID')
+
+harmony.umap.merge$Sub.Annotation <- factor(harmony.umap.merge$Sub.Annotation,
+                                              levels=cell.order)
+
+harmony.umap.merge$High.Annotation <- as.character(harmony.umap.merge$Sub.Annotation)
+harmony.umap.merge$High.Annotation[harmony.umap.merge$Sub.Annotation %in% c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th2",
+                                                                            "CD4.Th17", "CD4.Th1", "CD4.Tfh", "Treg")] <- "CD4"
+harmony.umap.merge$High.Annotation[harmony.umap.merge$Sub.Annotation %in% c("CD8.Naive", "CD8.Prolif", "CD8.TE", "CD8.EM", "CD8.CM")] <- "CD8"
+
+```
+
+```{r, fig.height=3.55, fig.width=3.95}
+ggplot(harmony.umap.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(aes(colour=Sub.Annotation), pointsize=0.5) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    labs(x="UMAP1", y="UMAP2") +
+    guides(colour=FALSE) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_Harmony-UMAP_annotation-nolegend.pdf",
+           height=3.55, width=3.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(harmony.umap.merge[harmony.umap.merge$High.Annotation %in% c("CD8"), ],
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(aes(colour=Sub.Annotation), pointsize=1) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    labs(x="UMAP1", y="UMAP2") +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_splitCD8-Harmony-UMAP_annotation.pdf",
+           height=3.55, width=5.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=3.55, fig.width=5.15}
+ggplot(harmony.umap.merge[harmony.umap.merge$High.Annotation %in% c("CD4"), ],
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(aes(colour=Sub.Annotation), pointsize=1) +
+    scale_colour_manual(values=cell.cols) +
+    theme_cowplot() +
+    labs(x="UMAP1", y="UMAP2") +
+    guides(colour=guide_legend(title="Cell type", override.aes = list(size=3))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_splitCD4-Harmony-UMAP_annotation.pdf",
+           height=3.55, width=5.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+
+```{r}
+dens.umap.list <- list()
+loop.cells <- intersect(cell.order, unique(as.character(harmony.umap.merge$Sub.Annotation)))
+
+for(i in seq_along(loop.cells)){
+    i.c <- loop.cells[i]
+    # change this to 1% of all cells
+    i.n <- ceiling(sum(harmony.umap.merge$Sub.Annotation %in% i.c)/100)
+    if(i.n < 50){
+      i.n <- 50
+    }
+    i.dens <- get_density(harmony.umap.merge$Harmony.UMAP1[harmony.umap.merge$Sub.Annotation %in% i.c],
+                          harmony.umap.merge$Harmony.UMAP2[harmony.umap.merge$Sub.Annotation %in% i.c], n=i.n)
+    
+    dens.umap.list[[i.c]] <- data.frame("Sub.Annotation"=i.c,
+                                        "CellID"=harmony.umap.merge$CellID[harmony.umap.merge$Sub.Annotation %in% i.c],
+                                        "Dens"=i.dens)
+}
+
+umap.dens <- do.call(rbind.data.frame, dens.umap.list)
+dens.merge <- merge(harmony.umap.merge, umap.dens, by=c('Sub.Annotation', 'CellID'))
+```
+
+
+
+```{r, fig.height=10.95, fig.width=10.95}
+ggplot(dens.merge,
+       aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+  geom_scattermore(data=dens.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                   colour='grey80', alpha=0.5) +
+  geom_scattermore(aes(colour=Dens), pointsize=2) +
+  scale_colour_viridis() +
+  labs(x="UMAP1", y="UMAP2") +
+  theme_cowplot() +
+  facet_wrap(~Sub.Annotation) +
+  guides(colour=guide_colourbar(title="Cell type density")) +
+  ggsave("~/Dropbox/COVID19/plot.dir/Tcell-Harmony-UMAP-density_annotation.pdf",
+         height=6.95, width=8.95, useDingbats=FALSE) +
+  NULL
+```
+
+Generate a separate plot for each subtype.
+
+```{r, fig.height=10.95, fig.width=12.95}
+# generate a series of PDFs, one for each cell type
+for(x in seq_along(cell.order)){
+  x.c <- cell.order[x]
+  
+  ggplot(dens.merge,
+         aes(x=Harmony.UMAP1, y=Harmony.UMAP2)) +
+    geom_scattermore(data=dens.merge[, c("Harmony.UMAP1", "Harmony.UMAP2")],
+                     colour='grey80', alpha=0.2) +
+    geom_point_rast(data=dens.merge[dens.merge$Sub.Annotation %in% x.c, ],
+                    aes(colour=Dens), size=0.1) +
+    scale_colour_viridis() +
+    labs(x="UMAP1", y="UMAP2") +
+    theme_cowplot() +
+    guides(colour=guide_colourbar(title="Density")) +
+      theme(aspect=1,
+        legend.key.size = unit(0.2, "cm"),
+        axis.text=element_blank(),
+        axis.title=element_blank(),
+        legend.title=element_text(size=8),
+        legend.text=element_blank()) +
+    ggsave(paste0("~/Dropbox/COVID19/plot.dir/Tcell_Harmony-UMAP-", x.c, "_density_annotation.pdf"),
+           height=1.55, width=2.95, useDingbats=FALSE) +
+  NULL
+}
+
+```
+
+
+
+
+
+
