@@ -3,6 +3,10 @@ title: "COVID19: T cell differential abundance"
 output: html_notebook
 ---
 
+Performing differential abundance testing using a negative binomial GLM. Cell counts per donor sample are used as input, and the total number of cells 
+captured (after QC) are used to normalize the model counts.
+
+
 ```{r, warning=FALSE, message=FALSE}
 library(ggplot2)
 library(ggsci)
@@ -294,4 +298,6 @@ ggplot(plotting.df,
            height=4.15, width=9.95, useDingbats=FALSE) +
     NULL
 ```
+
+
 
