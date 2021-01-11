@@ -1,0 +1,1213 @@
+---
+title: "TCR clonotype definitions: All"
+output: html_notebook
+---
+
+# Introduction
+
+We want to know if there are any considerable changes in T cell and B cell clonality that might track with disease severity. That means we need a 
+definition of what constitutes a "clone" in the first place. To do this we need to calculate the similarities between adaptive immune receptors and 
+group them into highly similar sequences, thus defining a "clone".
+
+We can do this using string distances, specifically the Levenshtein distance as it allows us to compute distances between strings of different 
+lengths. With these, I will construct a graph/network of CDR3 sequences and cluster them into highly similar clonotypes.
+
+```{r, warning=FALSE, message=FALSE}
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(ggplot2)
+library(ggthemes)
+library(ggsci)
+library(scales)
+library(viridis)
+library(cowplot)
+library(tidytext)
+library(reshape2)
+library(dplyr)
+library(RColorBrewer)
+library(pheatmap)
+library(igraph)
+library(stringdist)
+library(ineq)
+library(robustbase)
+library(kableExtra)
+source("~/Dropbox/R_sessions/GGMike/theme_mike.R")
+```
+
+```{r}
+covid.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
+                       header=TRUE, stringsAsFactors=FALSE)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+all.meta <- read.table("~/Dropbox/COVID19/Data/COVID19_scMeta-data.tsv",
+                       sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(all.meta) <- all.meta$CellID
+
+tcell.annotations <- read.table("~/Dropbox/COVID19/Data/Tcell_annotations_ext.tsv",
+                                sep="\t", header=TRUE, stringsAsFactors=FALSE)
+all.meta <- merge(all.meta, tcell.annotations, by='CellID')
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+tcr.all <- read.table("~/Dropbox/COVID19/Data/TCR/TCR_merged.tsv",
+                      sep="\t", header=TRUE, stringsAsFactors=FALSE)
+tcr.all <- merge(tcr.all, all.meta, by=c('CellID'))
+
+group.cols <- c("#2ca02c", "#1f77b4", "#9467bd", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#252525")
+names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+```
+
+After chatting to Kelvin, he also suggested that true clonotypes would have the same length CDR3 junctions. For the BCR, he defines them based on the specific 
+genes used to account for SHM, then uses an 85% amino acid similarity threshold (approx. equivalent to Hamming distance of 3). I could try to emulate this 
+approach with the TCR data as well.
+
+I have computed these on the EBI server because it takes so long.
+
+```{r, warning=FALSE, message=FALSE}
+tcr.dist.df <- read.table("~/Dropbox/COVID19/Data/TCR/TCR_clonotypes.tsv",
+                          sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+tcr.dist.df <- merge(tcr.dist.df, all.meta, by.x=c('CellID'), by.y=c('CellID'))
+tcr.dist.df$TCR.Chain <- "TRA"
+tcr.dist.df$TCR.Chain[grepl(tcr.dist.df$TCR.Group, pattern="TRB")] <- "TRB"
+```
+
+
+I've assigned each cell to 2 groups, 1 per TCR chain. I want to evaluate whether the clonality, that is the distinct number of groups increases 
+or decreases as a function of specific measured variables, e.g. age, disease severity. I also want to evaluate this in a sub-type specific manner.
+
+```{r, warning=FALSE, message=FALSE}
+# count the number of unique groups in each individual and cell type - take the proportion within each
+d.types <- unique(tcr.dist.df$sample_id)
+c.types <- unique(tcr.dist.df$Sub.Annotation)
+chain.types <- c("TRA", "TRB")
+
+tcr.clono.freq.list <- list()
+tcr.clono.count.list <- list()
+
+tcr.group.list <- list()
+
+keep.bcs <- c()
+for(x in seq_along(d.types)){
+    x.d <- d.types[x]
+    for(j in seq_along(c.types)){
+        j.type <- c.types[j]
+        
+        sub.df <- tcr.dist.df[tcr.dist.df$sample_id %in% x.d &
+                                  tcr.dist.df$Sub.Annotation %in% j.type, ]
+        # I need to assign the TRA & TRB to a single clonotype
+        tra.clonos <- sub.df[sub.df$TCR.Chain %in% c("TRA"), c("TCR.Group", "CellID")]
+        colnames(tra.clonos) <- c("TRA.Group", "CellID")
+        # mark cells with == 2 alpha chains
+        multi.alpha.tab <- table(tra.clonos$CellID)
+        multi.alpha <- names(multi.alpha.tab)[multi.alpha.tab == 2]
+        
+        trb.clonos <- sub.df[sub.df$TCR.Chain %in% c("TRB"), c("TCR.Group", "CellID")]
+        colnames(trb.clonos) <- c("TRB.Group", "CellID")
+        # mark cells with == 2 beta chains
+        multi.beta.tab <- table(trb.clonos$CellID)
+        multi.beta <- names(multi.beta.tab)[multi.beta.tab == 2]
+        
+        x.clono <- merge(tra.clonos, trb.clonos, by='CellID')
+        x.clono$TCR.Group <- paste(x.clono$TRA.Group, x.clono$TRB.Group, sep=":")
+        tcr.group.list[[paste(x.d, j.type, sep="_")]] <- x.clono
+        
+        # remove cells that > 2 clones
+        x.tra.tab <- table(x.clono$CellID, x.clono$TRA.Group)
+        x.mult.tra <- rownames(x.tra.tab)[rowSums(x.tra.tab) > 1]
+        
+        x.trb.tab <- table(x.clono$CellID, x.clono$TRB.Group)
+        x.mult.trb <- rownames(x.trb.tab)[rowSums(x.trb.tab) > 1]
+        
+        # drop with > 1 beta AND > 1 alpha too
+        x.true.multi <- setdiff(unique(c(multi.alpha, multi.beta)), intersect(multi.alpha, multi.beta))
+        drop.cells <- intersect(multi.alpha, multi.beta)
+        x.clono <- x.clono[!x.clono$CellID %in% drop.cells, ]
+        
+        x.dup.cells <- x.clono[x.clono$CellID %in% x.true.multi,]
+        x.multi.groups <- sapply(x.true.multi, 
+                                 FUN=function(X) paste(x.dup.cells[x.dup.cells$CellID %in% X, ]$TCR.Group, collapse=":"))
+        
+        if(nrow(x.dup.cells) > 0){
+            x.clono.dup <- data.frame("CellID"=names(x.multi.groups), "TCR.Group"=x.multi.groups)
+            x.clono.dup$TRA.Group <- gsub(x.clono.dup$TCR.Group,
+                                          pattern="(\\S+):(\\S+):(\\S+):(\\S+)",
+                                          replacement="\\1:\\3")
+            x.clono.dup$TRB.Group <- gsub(x.clono.dup$TCR.Group,
+                                          pattern="(\\S+):(\\S+):(\\S+):(\\S+)",
+                                          replacement="\\2:\\4")
+            
+            x.clono.dup <- x.clono.dup[, c("CellID", "TRA.Group", "TRB.Group", "TCR.Group")]
+            x.clono <- x.clono[!x.clono$CellID %in% x.clono.dup$CellID, ]
+            x.clono <- do.call(rbind.data.frame,
+                               list(x.clono, x.clono.dup))
+        }
+        
+        keep.bcs <- c(keep.bcs, x.clono$CellID)
+        
+        # need to make the cells with multiple beta or alpha chains into a single clone
+        if(nrow(x.clono) > 0){
+            clon.tab <- table(x.clono$TCR.Group)
+            clon.freq <- length(clon.tab)/nrow(x.clono)
+            
+            # we should compute the Gini index
+            clon.gini <- Gini(clon.tab)
+            
+            tcr.clono.freq.list[[paste(x.d, j.type, sep="_")]] <- data.frame("sample_id"=x.d,
+                                                                             "Sub.Annotation"=j.type,
+                                                                             "TCR.Gini"=clon.gini,
+                                                                             "Prop.Clonotypes"=clon.freq)
+            tcr.clono.count.list[[paste(x.d, j.type, sep="_")]] <- data.frame("TCR.Group"=names(clon.tab),
+                                                                              "Clono.Counts"=clon.tab,
+                                                                              "sample_id"=x.d,
+                                                                              "Sub.Annotation"=j.type)
+        }
+    }
+}
+
+tcr.group.df <- do.call(rbind.data.frame, tcr.group.list)
+
+# count the number of TCR alpha and beta
+tcr.group.df$N.Alpha <- apply(tcr.group.df, 1,
+                              FUN=function(TX) sum(grepl(unlist(strsplit(TX[4], split=":", fixed=TRUE)), pattern="TRA")))
+tcr.group.df$N.Beta <- apply(tcr.group.df, 1,
+                              FUN=function(TX) sum(grepl(unlist(strsplit(TX[4], split=":", fixed=TRUE)), pattern="TRB")))
+
+clon.freq.df <- do.call(rbind.data.frame, tcr.clono.freq.list)
+clon.freq.df$donor_id <- gsub(clon.freq.df$sample_id, pattern="(BGCV[0-9]+)_(CV[0-9]+)", replacement="\\2")
+clon.freq.merge <- merge(clon.freq.df, covid.meta, by=c('sample_id')) 
+clon.freq.merge <- clon.freq.merge[!clon.freq.merge$D0_status_summary %in% c("Non_covid", "LPS"), ]
+clon.freq.merge$D0_status_summary <- factor(clon.freq.merge$D0_status_summary,
+                                            levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+clon.freq.merge$Sex[clon.freq.merge$Sex %in% c("M")] <- "Male"
+clon.freq.merge$Sex[clon.freq.merge$Sex %in% c("F")] <- "Female"
+
+#clon.freq.merge <- clon.freq.merge[!clon.freq.merge$TCR.Chain %in% c("Multi"), ]
+clon.counts <- do.call(rbind.data.frame, tcr.clono.count.list)
+#clon.counts <- clon.counts[!clon.counts$TCR.Chain %in% c("Multi"), ]
+```
+
+
+```{r}
+select.cells <- c("CD4.Naive", "CD8.Naive", "CD4.EM", "CD4.CM", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Prolif", "CD4.IL22",
+                  "CD8.EM", "CD8.TE", "CD8.CM", "CD8.Prolif")
+```
+
+Show clone expansions as ordered factor and binary categorisation.
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=6.15}
+clon.size.merge <- merge(clon.counts, covid.meta, by='sample_id')
+clon.size.merge$Clone.Size <- "1"
+clon.size.merge$Clone.Size[clon.size.merge$Clono.Counts.Freq == 2] <- "2"
+clon.size.merge$Clone.Size[clon.size.merge$Clono.Counts.Freq == 3] <- "3"
+clon.size.merge$Clone.Size[clon.size.merge$Clono.Counts.Freq > 3] <- ">3"
+clon.size.merge$Clone.Size <- factor(clon.size.merge$Clone.Size,
+                                     levels=c("1", "2", "3", ">3"))
+clon.size.merge <- clon.size.merge[!clon.size.merge$D0_status_summary %in% c("Non_covid"), ]
+
+clon.size.merge$D0_status_summary <- factor(clon.size.merge$D0_status_summary,
+                                            levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical", "LPS"))
+clon.size.merge$Agg.Annot <- clon.size.merge$Sub.Annotation
+clon.size.merge$Agg.Annot[clon.size.merge$Sub.Annotation %in% c("CD4.CM", "CD4.EM", "CD4.Naive", "cTfh-like",
+                                                                "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.IL22", "CD4.Prolif", "Treg")] <- "CD4"
+clon.size.merge$Agg.Annot[clon.size.merge$Sub.Annotation %in% c("CD8.TE", "CD8.EM", "CD8.Naive", "CD8.Prolif", "CD8.Activated")] <- "CD8"
+```
+
+The clone counts needs to be normalized within each individual for the number of captured T cells.
+
+```{r}
+cell.order <- c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Tfh",
+                "Treg", "CD8.Naive", "CD8.Activated", "CD8.Prolif", "CD8.CM", "CD8.TE", "CD8.EM", "gdT", "MAIT", "NKT")
+
+all.qual.cols <- brewer.pal.info[brewer.pal.info$category %in% c("qual") & brewer.pal.info$colorblind, ]
+col_vector = unlist(mapply(brewer.pal, all.qual.cols$maxcolors, rownames(all.qual.cols)))
+
+# cell.cols <- col_vector[c(1:7, 9:19)]
+cell.cols <- col_vector[c(1:17, 19, 20)]
+names(cell.cols) <- cell.order
+```
+
+
+```{r, fig.height=4.95, fig.width=8.15}
+ggplot(clon.size.merge[clon.size.merge$Clono.Counts.Freq > 1 &
+                           !clon.size.merge$D0_status_summary %in% c("LPS") &
+                           clon.size.merge$Collection_Day %in% c("D0") &
+                           clon.size.merge$Sub.Annotation %in% select.cells,], 
+       aes(x=Sub.Annotation, y=Clono.Counts.Freq, fill=Sub.Annotation)) +
+    geom_boxplot(outlier.size=0.25) +
+    theme_cowplot() +
+    scale_fill_manual(values=cell.cols) +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1),
+          axis.title.x=element_blank(),
+          strip.background=element_rect(fill='white', colour='white')) +
+    facet_wrap(~D0_status_summary, scales="free_y", nrow=2) +
+    #scale_y_continuous(limits=c(0, 100), oob=squish) +
+    guides(fill=guide_legend(title="Cell type")) +
+    labs(y="Clone size") +
+    ggsave("~/Dropbox/COVID19/plot.dir/All_TCRclonotype_freq-boxplots.pdf",
+           height=4.95, width=8.15, useDingbats=FALSE)
+```
+
+Need to show these as normalized expanded clone frequencies.
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=6.15}
+ggplot(clon.size.merge[clon.size.merge$Collection_Day %in% c("D0") & 
+                           clon.size.merge$Agg.Annot %in% c("CD4", "CD8", "Treg") &
+                           !is.na(clon.size.merge$Clone.Size), ],
+       aes(x=D0_status_summary, fill=Clone.Size)) +
+    geom_bar(position='fill') +
+    scale_fill_aaas() +
+    theme_cowplot() +
+    facet_wrap(~Agg.Annot) + 
+    labs(x="Severity", y="Proportion") +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, size=14, colour="black"),
+          strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=14, colour='black')) +
+    guides(fill=guide_legend(title="Clone size")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/TCR_clonality_bars.pdf",
+           height=2.95,width=6.15, useDingbats=FALSE) +
+    NULL
+```
+
+Does the clonal expansion change by gender?
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.75, fig.width=6.15}
+ggplot(clon.size.merge[clon.size.merge$Collection_Day %in% c("D0") & 
+                           clon.size.merge$Agg.Annot %in% c("CD4", "CD8", "Treg") &
+                           !is.na(clon.size.merge$Clone.Size), ],
+       aes(x=D0_status_summary, fill=Clone.Size)) +
+    geom_bar(position='fill') +
+    scale_fill_aaas() +
+    theme_cowplot() +
+    facet_wrap(Sex~Agg.Annot) + 
+    labs(x="Severity", y="Proportion") +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, size=14, colour="black"),
+          strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=14, colour='black')) +
+    guides(fill=guide_legend(title="Clone size")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/TCR_clonality_bars-gender.pdf",
+           height=4.75,width=6.15, useDingbats=FALSE) +
+    NULL
+```
+
+This shows for clones that occur more than once, their proportions across severity groups. It also illustrates the point that 
+the clonal expansions are largely in the CD8+ compartment. It's better show this as a distribution though. I'll focus in on the CD8 compartment 
+as that is where the major clonal changes are most evident.
+
+Also show these ignoring the singletons, i.e just the expanded clones.
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=6.15}
+clon.size.merge <- merge(clon.counts, covid.meta, by='sample_id')
+clon.size.merge$Clone.Size <- NA
+clon.size.merge$Clone.Size[clon.size.merge$Clono.Counts.Freq == 2] <- "2"
+clon.size.merge$Clone.Size[clon.size.merge$Clono.Counts.Freq == 3] <- "3"
+clon.size.merge$Clone.Size[clon.size.merge$Clono.Counts.Freq > 3] <- ">3"
+clon.size.merge$Clone.Size <- factor(clon.size.merge$Clone.Size,
+                                     levels=c("2", "3", ">3"))
+clon.size.merge <- clon.size.merge[!clon.size.merge$D0_status_summary %in% c("Non_covid"), ]
+
+clon.size.merge$Expanded.Clone <- "Single"
+clon.size.merge$Expanded.Clone[clon.size.merge$Clono.Counts.Freq > 1] <- "Expanded"
+
+clon.size.merge$D0_status_summary <- factor(clon.size.merge$D0_status_summary,
+                                            levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical", "LPS"))
+clon.size.merge$Agg.Annot <- clon.size.merge$Sub.Annotation
+clon.size.merge$Agg.Annot[clon.size.merge$Sub.Annotation %in% c("CD4.CM", "CD4.EM", "CD4.Naive", "CD4.Tfh", "CD4.Prolif",
+                                                                "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.IL22", "Treg")] <- "CD4"
+clon.size.merge$Agg.Annot[clon.size.merge$Sub.Annotation %in% c("CD8.TE", "CD8.EM", "CD8.Naive", "CD8.Prolif")] <- "CD8"
+
+
+ggplot(clon.size.merge[clon.size.merge$Collection_Day %in% c("D0") & 
+                           clon.size.merge$Agg.Annot %in% c("CD4", "CD8", "Treg") &
+                           !is.na(clon.size.merge$Clone.Size), ],
+       aes(x=D0_status_summary, fill=Clone.Size)) +
+    geom_bar(position='fill') +
+    scale_fill_aaas() +
+    theme_cowplot() +
+    facet_wrap(~Agg.Annot) + 
+    labs(x="Severity", y="Proportion") +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1, size=14, colour="black"),
+          strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=14, colour='black')) +
+    guides(fill=guide_legend(title="Clone size")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/TCR_clonality_bars_nosingleton.pdf",
+           height=2.95,width=6.15, useDingbats=FALSE) +
+    NULL
+```
+
+```{r}
+expanded.clones <- unique(clon.size.merge$TCR.Group[clon.size.merge$Clono.Counts.Freq > 1])
+
+tcr.group.merge <- merge(tcr.dist.df[, !colnames(tcr.dist.df) %in% c("TCR.Group")], tcr.group.df, by=c('CellID'))
+# remove duplicated cells
+tcr.group.merge <- tcr.group.merge[!duplicated(tcr.group.merge$CellID), ]
+tcr.group.merge$Expand.Clone <- "Single"
+tcr.group.merge$Expand.Clone[tcr.group.merge$TCR.Group %in% expanded.clones] <- "Expanded"
+tcr.group.merge$Expand.Clone <- factor(tcr.group.merge$Expand.Clone,
+                                       levels=c("Single", "Expanded"))
+
+tcr.group.merge$Size.Group <- "1"
+tcr.group.merge$Size.Group[tcr.group.merge$TCR.Group %in% clon.size.merge$TCR.Group[clon.size.merge$Clone.Size %in% c("2")]] <- "2"
+tcr.group.merge$Size.Group[tcr.group.merge$TCR.Group %in% clon.size.merge$TCR.Group[clon.size.merge$Clone.Size %in% c("3")]] <- "3"
+tcr.group.merge$Size.Group[tcr.group.merge$TCR.Group %in% clon.size.merge$TCR.Group[clon.size.merge$Clone.Size %in% c(">3")]] <- ">3"
+
+```
+
+Remove the expanded naives as these are probably poorly sequenced cells that just made it through the sequencing QC thresholds.
+
+```{r}
+expanded.naive <- tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid") &
+                         tcr.group.merge$Collection_Day %in% c("D0") &
+                         tcr.group.merge$Expand.Clone %in% c("Expanded") &
+                         tcr.group.merge$Sub.Annotation %in% c("CD4.Naive", "CD8.Naive"), ]
+#table(tcr.all[tcr.all$CellID %in% expanded.naive$CellID, ]$cdr3)
+
+write.table(unique(expanded.naive$CellID),
+            file="~/Dropbox/COVID19/Data/Expanded_Naive.txt",
+            sep="\t", quote=FALSE, col.names=FALSE, row.names=FALSE)
+
+table(expanded.naive$D0_status_summary)
+```
+
+
+Check the size factors of these naive cells vs all others.
+
+```{r}
+sf.df <- read.table("~/Dropbox/COVID19/Data/Tcell_sizefactors.tsv",
+                    sep="\t", header=TRUE, stringsAsFactors=FALSE)
+sf.merge <- merge(sf.df, tcr.group.merge[tcr.group.merge$Sub.Annotation %in% c("CD4.Naive", "CD8.Naive"), ], by='CellID')
+```
+
+```{r}
+ggplot(sf.merge, aes(x=Sub.Annotation, y=SFactor, fill=Expand.Clone)) +
+    geom_boxplot() +
+    theme_cowplot() +
+    labs(x="Annotation", y="Size factor") +
+    ggsave("~/Dropbox/COVID19/plot.dir/Expanded_Naive_sizeFactor-boxplot.pdf",
+           height=1.95, width=4.15, useDingbats=FALSE)
+```
+
+Plot the distribution of phenotypes in the expanded clones.
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=9.95}
+# remove expanded naive cells <- these are probably artifactual
+tcr.group.merge <- tcr.group.merge[!tcr.group.merge$CellID %in% unique(expanded.naive$CellID), ]
+
+tcr.group.merge$OrderedSeverity <- tcr.group.merge$D0_status_summary
+tcr.group.merge$OrderedSeverity <- factor(tcr.group.merge$OrderedSeverity,
+                                          levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical", "LPS"))
+
+tcr.group.merge$Sub.Annotation <- factor(tcr.group.merge$Sub.Annotation,
+                                         levels=cell.order)
+
+ggplot(tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid", "LPS", "Healthy") &
+                           tcr.group.merge$Collection_Day %in% c("D0") &
+                           !tcr.group.merge$Sub.Annotation %in% c("gdT", "MAIT", "NKT"), ],
+       aes(x=Expand.Clone, fill=Sub.Annotation)) +
+    geom_bar(position='fill') +
+    theme_cowplot() +
+    scale_fill_manual(values=cell.cols) +
+    facet_wrap(~OrderedSeverity, nrow=1) +
+    labs(x="Clone Size", y="Proportion") +
+    theme(aspect=5/3,
+          legend.key.size=unit(0.3, "cm"),
+          axis.text=element_text(size=10),
+          strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=10, face='bold')) +
+    guides(fill=guide_legend(title="Cell type", ncol=1)) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcells_CloneSizeDistribution-collapse-bars.pdf",
+           height=2.95, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+Show the boxplots of the expanded clones per donor, normalized properly.
+
+```{r, fig.height=5.95, fig.width=9.95}
+# these need to be normalised by the total numbers of cells for each patient sample
+n.tcr.vecc <- table(tcr.group.merge$sample_id)
+
+expand.tab <- as.data.frame(xtabs( ~ Expand.Clone + sample_id + Sub.Annotation, 
+                                   data=tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid", "LPS") &
+                                                            tcr.group.merge$Collection_Day %in% c("D0") &
+                                                            tcr.group.merge$Expand.Clone %in% c("Expanded") &
+                                                            !tcr.group.merge$Sub.Annotation %in% c("gdT", "MAIT", "NKT"), ]))
+expand.tab$Expand.Clone <- as.character(expand.tab$Expand.Clone)
+expand.mat <- dcast(expand.tab[expand.tab$Expand.Clone %in% c("Expanded"), ], Sub.Annotation ~ sample_id, value.var='Freq')
+rownames(expand.mat) <- expand.mat$Sub.Annotation
+expand.mat <- expand.mat[, -1]
+expand.norm <- as.data.frame(t(apply(expand.mat, 1, 
+                                     FUN=function(XP) XP/n.tcr.vecc[colnames(expand.mat)])))
+expand.norm$Sub.Annotation <- rownames(expand.norm)
+expand.norm.df <- melt(expand.norm, id.vars="Sub.Annotation")
+colnames(expand.norm.df) <- c("Sub.Annotation", "sample_id", "Freq")
+
+expand.freq.merge <- merge(expand.norm.df, covid.meta, by='sample_id')
+expand.freq.merge$OrderedSeverity <- expand.freq.merge$D0_status_summary
+expand.freq.merge$OrderedSeverity <- factor(expand.freq.merge$OrderedSeverity,
+                                            levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical", "LPS"))
+
+expand.freq.merge$High.Annotation <- NA
+expand.freq.merge$High.Annotation[expand.freq.merge$Sub.Annotation %in% c("CD4.IL22", "CD4.CM", "CD4.EM", "CD4.Tfh", "CD4.Th1",
+                                                                          "CD4.Th2", "Treg", "CD4.Prolif", "CD4.Th17")]  <- "CD4"
+expand.freq.merge$High.Annotation[expand.freq.merge$Sub.Annotation %in% c("CD8.TE", "CD8.EM", "CD8.CM", "CD8.Prolif", "CD8.Activated")]  <- "CD8"
+
+ggplot(expand.freq.merge[!expand.freq.merge$Sub.Annotation %in% c("NKT", "gdT", "MAIT", "CD4.Naive", "CD8.Naive"), ], 
+       aes(x=OrderedSeverity, y=Freq, fill=OrderedSeverity)) +
+    geom_boxplot(outlier.size=0.5) +
+    theme_cowplot() +
+    scale_fill_manual(values=group.cols) +
+    facet_wrap(~Sub.Annotation, scales="free_y") +
+    labs(x="Severity", y="Clone Size Frequency") +
+    expand_limits(y=c(0)) +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1),
+          strip.background=element_rect(fill='white', colour='white')) +
+    guides(fill=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Expanded_CloneSize_distribution-boxplot.pdf",
+           height=5.95, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+Summarise this down to CD4 and CD8.
+
+```{r, fig.height=3.15, fig.width=5.95}
+ggplot(expand.freq.merge[!expand.freq.merge$Sub.Annotation %in% c("NKT", "gdT", "MAIT", "CD4.Naive", "CD8.Naive"), ], 
+       aes(x=OrderedSeverity, y=Freq, fill=OrderedSeverity)) +
+    geom_boxplot(outlier.size=0.5) +
+    theme_cowplot() +
+    scale_fill_manual(values=group.cols) +
+    facet_wrap(~High.Annotation, scales="free_y") +
+    labs(x="Severity", y="Clone Size Frequency") +
+    expand_limits(y=c(0)) +
+    theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1),
+          strip.background=element_rect(fill='white', colour='white')) +
+    guides(fill=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Expanded_CloneSize_distribution-boxplot-high_level.pdf",
+           height=3.15, width=5.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=9.95}
+expand.tab.merge <- merge(expand.tab, covid.meta, by='sample_id')
+expand.tab.merge$OrderedSeverity <- expand.tab.merge$D0_status_summary
+expand.tab.merge$OrderedSeverity <- factor(expand.tab.merge$OrderedSeverity,
+                                           levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical", "LPS"))
+tcr.group.merge$Size.Group <- factor(tcr.group.merge$Size.Group,
+                                     levels=c("1", "2", "3", ">3"))
+
+ggplot(tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid", "LPS") &
+                           tcr.group.merge$Collection_Day %in% c("D0") &
+                           !tcr.group.merge$Sub.Annotation %in% c("gdT", "NKT", "MAIT"), ],
+       aes(x=Size.Group, fill=Sub.Annotation)) +
+    geom_bar(position='fill') +
+    theme_cowplot() +
+    scale_fill_manual(values=cell.cols) +
+    facet_wrap(~OrderedSeverity, nrow=1) +
+    labs(x="Clone Size", y="Proportion") +
+    ggsave("~/Dropbox/COVID19/plot.dir/TCR_clonal_expansion-phenotype.pdf",
+           height=2.95, width=7.95, useDingbats=FALSE) +
+    theme(aspect=5/3,
+          legend.key.size=unit(0.3, "cm"),
+          strip.background=element_rect(colour='white', fill='white'),
+          strip.text=element_text(size=10, face='bold')) +
+    guides(fill=guide_legend(title="Cell type", ncol=1)) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcells_CloneSizeDistribution-bars.pdf",
+           height=2.95, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+Can we model the counts in these clonally expanded groups as a function of disease severity? Maybe focusing on the clones with >1 cells? 
+
+I will model the composition of the expanded clones with a series of logistic regression models, one for each cell type, comparing expanded to single 
+clones as a function of disease severity.
+
+Only run the model if there are at least 5 cells that are expanded clones.
+
+```{r, message=FALSE, warning=FALSE}
+expanded.tabs <- table(tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid", "LPS", "Healthy") &
+                    tcr.group.merge$Collection_Day %in% c("D0") &
+                    !tcr.group.merge$Sub.Annotation %in% c("gdT", "NKT", "MAIT"), ]$Sub.Annotation, 
+                    tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid", "LPS", "Healthy") &
+                                        tcr.group.merge$Collection_Day %in% c("D0") &
+                                        !tcr.group.merge$Sub.Annotation %in% c("gdT", "NKT", "MAIT"), ]$Expand.Clone)
+
+expanded.types <- rownames(expanded.tabs)[expanded.tabs[, 2] >= 5]
+
+ctypes <- expanded.types
+
+ctype.loglm.list <- list()
+tcr.group.merge$Binary.Expand <- 0
+tcr.group.merge$Binary.Expand[tcr.group.merge$Expand.Clone %in% c("Expanded")] <- 1
+
+for(x in seq_along(ctypes)){
+    x.c <- ctypes[x]
+    x.dat <- tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid", "LPS", "Healthy") &
+                           tcr.group.merge$Collection_Day %in% c("D0") &
+                           tcr.group.merge$Sub.Annotation %in% x.c, ]
+    x.dat$OrderedSeverity <- ordered(x.dat$D0_status_summary,
+                                     levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+    
+    x.loglm <- glm(Binary.Expand ~ OrderedSeverity + Site + Age + Sex, data=x.dat,
+                   family=binomial(link="logit"))
+    x.res <- summary(x.loglm)
+    ctype.loglm.list[[x.c]] <- data.frame("Predictor"=rownames(coefficients(x.res)[-1, ]),
+                                          "OR"=exp(coefficients(x.res)[-1, 1]),
+                                          "SE"=coefficients(x.res)[-1, 2],
+                                          "LCI"=exp(coefficients(x.res)[-1, 1] - 1.96*coefficients(x.res)[-1, 2]),
+                                          "UCI"=exp(coefficients(x.res)[-1, 1] + 1.96*coefficients(x.res)[-1, 2]),
+                                          "STAT"=coefficients(x.res)[-1, 3],
+                                          "Pvalue"=coefficients(x.res)[-1, 4],
+                                          "Celltype"=rep(x.c, nrow(coefficients(x.res)[-1, ])))
+}
+
+clone.lm.df <- do.call(rbind.data.frame, ctype.loglm.list)
+# drop the higher order terms
+clone.lm.df <- clone.lm.df[!clone.lm.df$Predictor %in% c("OrderedSeverity^5", "OrderedSeverity^4", "OrderedSeverity.C"), ]
+clone.lm.df$Padjust <- p.adjust(clone.lm.df$Pvalue, method="BH")
+
+rownames(clone.lm.df) <- NULL
+```
+
+Plot the OR +/- 95% CI
+
+```{r,  warning=FALSE, message=FALSE, fig.height=7.95, fig.width=9.95}
+ggplot(clone.lm.df, 
+       aes(x=Predictor, y=OR, fill=Padjust < 0.05)) +
+    geom_hline(yintercept=1, lty=2, col='grey70') +
+    geom_errorbar(aes(ymin=LCI, ymax=UCI)) +
+    geom_point(shape=22, size=3) +
+    theme_cowplot() +
+     theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    coord_flip() +
+    scale_fill_manual(values=c("blue", "orange")) +
+    facet_wrap(~Celltype, scales="free_x")  + 
+    ggsave("~/Dropbox/COVID19/plot.dir/TCR-ExpandClones-logLM_ordered.pdf",
+           height=7.95, width=9.95, useDingbats=FALSE)
+```
+
+
+```{r}
+# print P-values to html table
+loglm.table <- clone.lm.df[clone.lm.df$Predictor %in% c("OrderedSeverity.L"), ]
+clon.lm.pvalues <- data.frame("CellType"=loglm.table$Celltype, "OR"=loglm.table$OR,
+                              "LCI"=loglm.table$LCI, "UCI"=loglm.table$LCI, "Pvalue"=loglm.table$Pvalue,
+                              "FDR"=loglm.table$Padjust)
+
+kbl(clon.lm.pvalues) %>% kable_paper(full_width=FALSE) %>% 
+    save_kable("~/Dropbox/COVID19/plot.dir/Clonality_logLM_trend_pvals.html",
+               self_contained=TRUE)
+```
+
+
+This shows the OR +/- 95% CI for all logistic models - clearly some show no differences - CD8.TE are enriched for expanded clones as expected. Does the 
+adjustment for Site make much difference to these estimates?
+
+```{r, message=FALSE, warning=FALSE}
+ctypes <- c("CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th1", "CD4.Th2", "CD4.Tfh",
+            "Treg", "CD8.Prolif", "CD8.TE", "CD8.EM")
+
+ctype.loglm.list <- list()
+tcr.group.merge$Binary.Expand <- 0
+tcr.group.merge$Binary.Expand[tcr.group.merge$Expand.Clone %in% c("Expanded")] <- 1
+
+for(x in seq_along(ctypes)){
+    x.c <- ctypes[x]
+    x.dat <- tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid", "LPS", "Healthy") &
+                           tcr.group.merge$Collection_Day %in% c("D0") &
+                           tcr.group.merge$Sub.Annotation %in% x.c, ]
+    x.dat$OrderedSeverity <- ordered(x.dat$D0_status_summary,
+                                     levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+    
+    x.loglm <- glm(Binary.Expand ~ OrderedSeverity + Age + Sex, data=x.dat,
+                   family=binomial(link="logit"))
+    x.res <- summary(x.loglm)
+    ctype.loglm.list[[x.c]] <- data.frame("Predictor"=rownames(coefficients(x.res)[-1, ]),
+                                          "OR"=exp(coefficients(x.res)[-1, 1]),
+                                          "SE"=coefficients(x.res)[-1, 2],
+                                          "LCI"=exp(coefficients(x.res)[-1, 1] - 1.96*coefficients(x.res)[-1, 2]),
+                                          "UCI"=exp(coefficients(x.res)[-1, 1] + 1.96*coefficients(x.res)[-1, 2]),
+                                          "STAT"=coefficients(x.res)[-1, 3],
+                                          "Pvalue"=coefficients(x.res)[-1, 4],
+                                          "Celltype"=rep(x.c, nrow(coefficients(x.res)[-1, ])))
+}
+
+clone.lm.df.nosite <- do.call(rbind.data.frame, ctype.loglm.list)
+rownames(clone.lm.df.nosite) <- NULL
+```
+
+Plot the OR +/- 95% CI
+
+```{r,  warning=FALSE, message=FALSE, fig.height=5.95, fig.width=9.95}
+ggplot(clone.lm.df.nosite[!clone.lm.df.nosite$Predictor %in% c("OrderedSeverity^5", "OrderedSeverity^4", "OrderedSeverity.C"), ], 
+       aes(x=Predictor, y=OR, fill=Pvalue < 0.05)) +
+    geom_hline(yintercept=1, lty=2, col='grey70') +
+    geom_errorbar(aes(ymin=LCI, ymax=UCI)) +
+    geom_point(shape=22, size=3) +
+    theme_cowplot() +
+     theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    coord_flip() +
+    scale_fill_manual(values=c("blue", "orange")) +
+    facet_wrap(~Celltype, scales="free_x")  + 
+    ggsave("~/Dropbox/COVID19/plot.dir/TCR-ExpandClones-logLM_ordered-noSite.pdf",
+           height=5.95, width=9.95, useDingbats=FALSE)
+```
+
+This shows the OR +/- 95% CI for all logistic models without the adjustment for site; it definitely makes sense to adjust as a confounder with disease 
+severity.
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.75, fig.width=5.15}
+clone.size.cd8 <- as.data.frame(xtabs(~sample_id + Sub.Annotation,
+                                      data=tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid") &
+                                                               tcr.group.merge$Expand.Clone %in% c("Expanded"), ]))
+clone.size.cd8.tab <- dcast(clone.size.cd8, sample_id ~ Sub.Annotation, value.var='Freq')
+rownames(clone.size.cd8.tab) <- clone.size.cd8.tab$sample_id
+
+clone.size.cd8.tab <- clone.size.cd8.tab[, -1]
+clone.size.cd8 <- as.data.frame(apply(clone.size.cd8.tab, 2, FUN=function(X) X/sum(X)))
+clone.size.cd8$sample_id <- rownames(clone.size.cd8)
+clone.size.cd8.melt <- melt(clone.size.cd8, id.vars="sample_id")
+clone.size.cd8.melt <- merge(clone.size.cd8.melt, covid.meta, by='sample_id')
+
+clone.size.cd8.melt$OrderedSeverity <- clone.size.cd8.melt$D0_status_summary
+clone.size.cd8.melt$OrderedSeverity <- factor(clone.size.cd8.melt$OrderedSeverity,
+                                              levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical", "LPS"))
+
+q.95 <- quantile(clone.size.cd8.melt[clone.size.cd8.melt$variable %in% c("CD8.EM", "CD8.TE") &
+                               clone.size.cd8.melt$Collection_Day %in% c("D0") &
+                               !clone.size.cd8.melt$OrderedSeverity %in% c("Healthy", "LPS"), ]$value,
+                 c(0.05, 0.95))
+
+write.table(clone.size.cd8.melt,
+            file="~/Dropbox/COVID19/Data/ExpandedClone_counts.tsv",
+            quote=FALSE, sep="\t", row.names=FALSE)
+
+ggplot(clone.size.cd8.melt[clone.size.cd8.melt$variable %in% c("CD8.EM", "CD8.TE") &
+                               clone.size.cd8.melt$Collection_Day %in% c("D0") &
+                               !clone.size.cd8.melt$OrderedSeverity %in% c("Healthy", "LPS"), ],
+       aes(x=OrderedSeverity, y=value, fill=OrderedSeverity)) +
+    geom_boxplot(outlier.size=0.5) +
+    theme_cowplot() +
+    scale_fill_manual(values=group.cols) +
+    facet_wrap(~variable, scales="free") +
+    expand_limits(y=c(0)) +
+    labs(x="Severity", y="Proportion\nClones > 1") +
+    theme(aspect=2/1, axis.text.x=element_blank(),
+          legend.key.size=unit(0.3, "cm"),
+          axis.ticks.x=element_blank(),
+          axis.title=element_text(size=12),
+          axis.text.y=element_text(size=11),
+          strip.text=element_text(face='bold', size=10),
+          strip.background=element_rect(colour='white', fill='white')) +
+    guides(fill=guide_legend(title="Severity")) +
+    scale_y_continuous(limits=c(0, q.95[2]), oob=squish) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8_ExpandedClones.pdf",
+           height=2.75, width=5.15) +
+    NULL
+```
+
+
+```{r, fig.height=5.75, fig.width=8.15}
+ggplot(clone.size.cd8.melt[clone.size.cd8.melt$Collection_Day %in% c("D0") &
+                               !clone.size.cd8.melt$variable %in% c("MAIT", "NKT", "gdT") &
+                               !clone.size.cd8.melt$OrderedSeverity %in% c("Healthy", "LPS"), ],
+       aes(x=OrderedSeverity, y=value, fill=OrderedSeverity)) +
+    geom_boxplot(outlier.size=0.5) +
+    theme_cowplot() +
+    scale_fill_manual(values=group.cols) +
+    facet_wrap(~variable, scales="free") +
+    expand_limits(y=c(0)) +
+    labs(x="Severity", y="Proportion Clones > 1") +
+    theme(axis.text.x=element_blank(),
+          legend.key.size=unit(0.3, "cm"),
+          axis.ticks.x=element_blank(),
+          axis.title=element_text(size=12),
+          axis.text.y=element_text(size=11),
+          strip.text=element_text(face='bold', size=10),
+          strip.background=element_rect(colour='white', fill='white')) +
+    guides(fill=guide_legend(title="Severity")) +
+    scale_y_continuous(limits=c(0, q.95[2]), oob=squish) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_All_ExpandedClones.pdf",
+           height=5.75, width=8.15) +
+    NULL
+```
+
+
+```{r}
+em.clone.lm <- glmrob(value ~ Site + Age + Sex + OrderedSeverity, data=clone.size.cd8.melt[clone.size.cd8.melt$variable %in% c("CD8.EM") &
+                                                                                               clone.size.cd8.melt$Collection_Day %in% c("D0") &
+                                                                                               !clone.size.cd8.melt$OrderedSeverity %in%
+                                                                                               c("Healthy", "LPS"), ],
+                      family=gaussian(link='identity'))
+summary(em.clone.lm)
+```
+
+No change in the EM clone size distribution across severity groups.
+
+```{r}
+te.clone.lm <- glmrob(value ~ Site + Age + Sex + OrderedSeverity, data=clone.size.cd8.melt[clone.size.cd8.melt$variable %in% c("CD8.TE") &
+                                                                                               clone.size.cd8.melt$Collection_Day %in% c("D0") &
+                                                                                               !clone.size.cd8.melt$OrderedSeverity %in%
+                                                                                               c("Healthy", "LPS"), ],
+                      family=gaussian(link='identity'))
+summary(te.clone.lm)
+```
+
+Nor is there any change within the TE groups alone across severity groups. Now plot this as the ratio of TE/EM as a proxy of SLEC/MPEC.
+
+
+```{r, warning=TRUE, message=TRUE, fig.height=2.75, fig.width=4.15}
+# try the ratio with the counts rather than proportions - the ratios are internal to each individual, hopefully should be internally consistent?
+clone.size.cd8 <- as.data.frame(xtabs(~sample_id + Sub.Annotation,
+                                      data=tcr.group.merge[!tcr.group.merge$D0_status_summary %in% c("Non_covid") &
+                                                               tcr.group.merge$Expand.Clone %in% c("Expanded"), ]))
+clone.size.cd8.tab <- dcast(clone.size.cd8, sample_id ~ Sub.Annotation, value.var='Freq')
+rownames(clone.size.cd8.tab) <- clone.size.cd8.tab$sample_id
+
+te.em.ratio <- apply(clone.size.cd8.tab[, c("CD8.EM", "CD8.TE")], 1, 
+                     function(X) X[2]/X[1])
+te.em.ratio[is.na(te.em.ratio)] <- 0
+te.em.df <- data.frame("sample_id"=names(te.em.ratio), "EM.TE.Ratio"=te.em.ratio)
+write.table(te.em.df,
+            file="~/Dropbox/COVID19/Data/TE-EM_ratio.tsv",
+            quote=FALSE, sep="\t", row.names=FALSE)
+te.em.df <- merge(te.em.df, covid.meta, by='sample_id')
+
+te.em.df$OrderedSeverity <- te.em.df$D0_status_summary
+te.em.df <- te.em.df[!te.em.df$D0_status_summary %in% c("LPS", "Healthy"), ]
+te.em.df$OrderedSeverity <- ordered(te.em.df$OrderedSeverity,
+                                    levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+# Inf is because of 0 division
+te.em.df$EM.TE.Ratio[is.infinite(te.em.df$EM.TE.Ratio)] <- 0
+q.95 <- quantile(te.em.df[te.em.df$Collection_Day %in% c("D0"), ]$EM.TE.Ratio, c(0.05, 0.95))
+
+ggplot(te.em.df[te.em.df$Collection_Day %in% c("D0"), ],
+       aes(x=OrderedSeverity, y=EM.TE.Ratio, fill=OrderedSeverity)) +
+    geom_boxplot(outlier.size=0.5) +
+    theme_cowplot() +
+    theme(aspect=2/1, axis.text.x=element_blank(),
+          legend.key.size=unit(0.3, "cm"),
+          axis.title=element_text(size=11),
+          axis.ticks.x=element_blank(),
+          axis.text.y=element_text(size=11),
+          strip.text=element_text(face='bold', size=10),
+          strip.background=element_rect(colour='white', fill='white')) +
+    scale_fill_manual(values=group.cols) +
+    labs(x="Severity", y="TE:EM ratio") +
+    scale_y_continuous(limits=c(0, q.95[2]), oob=squish) +
+    guides(fill=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/Tcell_CD8_TE-EMRatio-counts.pdf",
+           height=2.75, width=4.15) +
+    NULL
+```
+
+Model this ratio in a robust GLM.
+
+```{r}
+rm.control <- glmrobMqle.control(maxit=500, acc=1e-6)
+
+em.te.lm <- glmrob(EM.TE.Ratio ~ Site + Age + Sex + OrderedSeverity, 
+                   data=te.em.df[te.em.df$Collection_Day %in% c("D0") &
+                                     !is.na(te.em.df$EM.TE.Ratio) &
+                                     !is.infinite(te.em.df$EM.TE.Ratio), ],
+                   family=gaussian(link='identity'), control=rm.control)
+summary(em.te.lm)
+```
+
+Model the ratio across groups.
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.95, fig.width=12.95}
+# need to normalize this across total numbers of TCRs per sample
+total.tcrs <- sapply(unique(clon.counts$sample_id), FUN=function(X) sum(clon.counts$Clono.Counts.Freq[clon.counts$sample_id %in% X]))
+clon.size.tab <- as.data.frame(xtabs(~ Expanded.Clone + sample_id + Sub.Annotation, data=clon.size.merge))
+clon.size.tab$Norm.Freq <- unlist(clon.size.tab %>% group_by(sample_id, Sub.Annotation) %>% 
+                                      group_map(.f=function(XP, ...) XP$Freq/sum(XP$Freq)))
+
+clon.size.dist <- merge(clon.size.tab, covid.meta, by='sample_id')
+clon.size.dist$sample_id <- as.character(clon.size.dist$sample_id)
+clon.size.dist$Sub.Annotation <- as.character(clon.size.dist$Sub.Annotation)
+
+clon.size.dist$D0_status_summary <- factor(clon.size.dist$D0_status_summary,
+                                           levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical", "LPS"))
+
+clon.size.dist$Agg.Annot <- clon.size.dist$Sub.Annotation
+clon.size.dist$Agg.Annot[clon.size.dist$Sub.Annotation %in% c("CD4.CM", "CD4.EM", "CD4.Naive", "CD4.Th1", "CD4.Th2", "CD4.Th17",
+                                                              "CD4.Tfh", "CD4.Prolif", "CD4.IL22")] <- "CD4"
+clon.size.dist$Agg.Annot[clon.size.dist$Sub.Annotation %in% c("CD8.TE", "CD8.EM", "CD8.Naive", "CD8.Prolif")] <- "CD8"
+
+```
+
+I've also calculated both the clonality and Gini index
+
+```{r, fig.height=5.95, fig.width=7.95}
+ggplot(clon.freq.merge[clon.freq.merge$Sub.Annotation %in% select.cells, ],
+       aes(x=TCR.Gini, y=1-Prop.Clonotypes, colour=D0_status_summary)) +
+    geom_point() +
+    theme_cowplot() +
+    scale_colour_manual(values=group.cols) +
+    facet_wrap(~Sub.Annotation) +
+    labs(x="TCR Chain", y="Clonalality") +
+    ggsave("~/Dropbox/COVID19/plot.dir/TCR_clonotype_ClonalityVsGin.png",
+           height=5.95, width=7.95, dpi=300) +
+    NULL
+```
+
+```{r, warning=all.meta, message=FALSE}
+clon.freq.merge$Agg.Cell <- clon.freq.merge$Sub.Annotation
+clon.freq.merge$Agg.Cell[clon.freq.merge$Sub.Annotation %in% c("CD4.CM", "CD4.EM")] <- "CD4.Mem"
+clon.freq.merge$Agg.Cell[clon.freq.merge$Sub.Annotation %in% c("CD8.CM", "CD8.EM")] <- "CD8.Mem"
+```
+
+
+
+```{r, fig.height=5.95, fig.width=9.95}
+ggplot(clon.freq.merge[clon.freq.merge$Agg.Cell %in% c("CD4.Mem", "CD4.Naive", "CD4.Tfh", "CD4.Th1", "CD4.IL22",
+                                                       "CD4.Prolif", "CD8.Prolif",
+                                                       "CD8.Mem", "CD8.Naive", "CD8.TE", "Treg"), ],
+       aes(x=D0_status_summary, y=TCR.Gini, fill=D0_status_summary)) +
+    geom_boxplot() +
+    theme_cowplot() +
+    scale_fill_manual(values=group.cols) +
+    facet_wrap(~Agg.Cell, scales="free_y") +
+    labs(x="Severity", y="Clonalal Diversity\n(Gini Index)") +
+    expand_limits(y=c(0)) +
+    theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14),
+          axis.text.x=element_blank()) +
+    guides(fill=guide_legend(title="Severity")) +
+    NULL + 
+    ggsave("~/Dropbox/COVID19/plot.dir/All_TCRclonality-boxplot_severity.pdf",
+           height=5.95, width=9.95, useDingbats=FALSE)
+```
+
+Here I am plotting the clonal diversity calculated simply as $1 - \frac{\#clonotypes}{\#cells}$. Therefore, high values indicate a high proportion of 
+cells from highly similar clonotypes, whilst smaller values indicate a greater diversity of clones. Across the board the more severe individuals have 
+a higher clonal diversity. How do other factors that contribute to clonality affect this, for instance age?
+
+What about in the expanded clones?
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.95, fig.width=9.95}
+ggplot(clon.freq.merge[clon.freq.merge$Agg.Cell %in% c("CD4.Mem", "CD4.Naive", "CD4.Tfh", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.IL22",
+                                                       "CD4.Prolif", "CD8.Prolif",
+                                                       "CD8.Mem", "CD8.Naive", "CD8.TE", "Treg"), ],
+       aes(x=Age, y=TCR.Gini, colour=D0_status_summary)) +
+    geom_point() +
+    geom_smooth(method="lm") +
+    theme_cowplot() +
+    scale_colour_manual(values=group.cols) +
+    theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    facet_wrap(~Sub.Annotation, scales="free_y") +
+    expand_limits(y=c(0)) +
+    labs(x="Age", y="Clonal Diversity\n(Gini Index)") +
+    guides(colour=guide_legend(title="Severity")) +
+    NULL +
+    ggsave("~/Dropbox/COVID19/plot.dir/All_TCRclonality-age.pdf",
+           height=5.95, width=9.95, useDingbats=FALSE)
+```
+
+There certainly don't seem to be many strong trends w.r.t age. I'm not sure how well powered a stratified analysis would be given the very small 
+numbers of donors here. Any gender differences?
+
+```{r, fig.height=2.95, fig.width=7.95}
+ggplot(clon.freq.merge[clon.freq.merge$Agg.Cell %in% c("CD8.Mem", "CD8.TE"), ],
+       aes(x=D0_status_summary, y=TCR.Gini, fill=Sex)) +
+    geom_boxplot(outlier.size=0.5) +
+    theme_cowplot() +
+    scale_fill_colorblind() +
+    theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    facet_wrap(~Sub.Annotation, scales="free_y") +
+    expand_limits(y=c(0)) +
+    labs(x="Severity", y="Clonal Diversity\n(Gini Index)") +
+    theme(aspect=1/1,
+          axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
+    NULL + 
+    ggsave("~/Dropbox/COVID19/plot.dir/All_TCRclonality-boxplot_severity_gender.pdf",
+           height=2.95, width=7.95, useDingbats=FALSE)
+```
+
+There do seem to be some differences in clonality between genders within each severity group.  Let's run a linear model and put some numbers on this, 
+I'll run a separate model for each sub-type.
+
+
+```{r}
+clonal.lm.list <- list()
+covid.freq.merge <- clon.freq.merge
+covid.freq.merge$OrderedStatus <- ordered(covid.freq.merge$D0_status_summary,
+                                          levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+c.types <- setdiff(unique(covid.freq.merge$Agg.Cell), c("CD4.Th17", "NKT", "gdT", "MAIT"))
+for(i in seq_along(c.types)){
+    i.c <- c.types[i]
+    i.clono.tcr.lm <- lm(1 - Prop.Clonotypes ~ Age + Site + Sex + OrderedStatus, 
+                             data=covid.freq.merge[covid.freq.merge$Agg.Cell %in% c(i.c), ])
+    i.lm.res <- summary(i.clono.tcr.lm)
+    clonal.lm.list[[i.c]] <- data.frame("Agg.Cell"=rep(i.c, nrow(i.lm.res$coefficients)),
+                                        "Beta"=i.lm.res$coefficients[, 1],
+                                        "SE"=i.lm.res$coefficients[, 2],
+                                        "STAT"=i.lm.res$coefficients[, 3],
+                                        "Pvalue"=i.lm.res$coefficients[, 4],
+                                        "Predictor"=rownames(i.lm.res$coefficients))
+}
+
+clono.lm.df <- do.call(rbind.data.frame, clonal.lm.list)
+clono.lm.df$Predictor <- gsub(clono.lm.df$Predictor, pattern="D0_status_summary", replacement="")
+```
+
+
+```{r}
+# print P-values to html table
+library(kableExtra)
+clon.lm.pvalues <- data.frame("CellType.Predictor"=rownames(clono.lm.df), "Pvalue"=clono.lm.df$Pvalue)
+
+kbl(clon.lm.pvalues) %>% kable_paper(full_width=FALSE) %>% 
+    save_kable("~/Dropbox/COVID19/plot.dir/TCR_LM_trend_pvals.html",
+               self_contained=TRUE)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=8.95, fig.width=9.95}
+# ignore anything 3rd order and higher
+ggplot(clono.lm.df[!clono.lm.df$Predictor %in% c("OrderedStatus^5", "OrderedStatus^4", "OrderedStatus.C"), ], 
+       aes(x=Predictor, y=Beta, fill=Pvalue < 0.05)) +
+    geom_hline(yintercept=0, lty=2, col='grey70') +
+    geom_errorbar(aes(ymin=Beta-SE, ymax=Beta+SE)) +
+    geom_point(shape=22, size=3) +
+    theme_cowplot() +
+     theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    coord_flip() +
+    scale_fill_manual(values=c("blue", "orange")) +
+    facet_wrap(~Agg.Cell, scales="free_x")  + 
+    ggsave("~/Dropbox/COVID19/plot.dir/All_TCRclonality-LM_ordered.pdf",
+           height=8.95, width=9.95, useDingbats=FALSE)
+```
+
+## TCR diversity in expanded clones only
+
+Calculate the diversity in the expanded clones only.
+
+```{r, warning=FALSE, message=FALSE}
+# count the number of unique groups in each individual and cell type - take the proportion within each
+d.types <- unique(tcr.dist.df$sample_id)
+c.types <- unique(tcr.dist.df$Sub.Annotation)
+chain.types <- c("TRA", "TRB")
+
+exp.clono.freq.list <- list()
+
+keep.bcs <- c()
+for(x in seq_along(d.types)){
+    x.d <- d.types[x]
+    for(j in seq_along(c.types)){
+        j.type <- c.types[j]
+        
+        sub.df <- tcr.dist.df[tcr.dist.df$sample_id %in% x.d &
+                                  tcr.dist.df$Sub.Annotation %in% j.type, ]
+        # I need to assign the TRA & TRB to a single clonotype
+        tra.clonos <- sub.df[sub.df$TCR.Chain %in% c("TRA"), c("TCR.Group", "CellID")]
+        colnames(tra.clonos) <- c("TRA.Group", "CellID")
+        # mark cells with == 2 alpha chains
+        multi.alpha.tab <- table(tra.clonos$CellID)
+        multi.alpha <- names(multi.alpha.tab)[multi.alpha.tab == 2]
+        
+        trb.clonos <- sub.df[sub.df$TCR.Chain %in% c("TRB"), c("TCR.Group", "CellID")]
+        colnames(trb.clonos) <- c("TRB.Group", "CellID")
+        # mark cells with == 2 beta chains
+        multi.beta.tab <- table(trb.clonos$CellID)
+        multi.beta <- names(multi.beta.tab)[multi.beta.tab == 2]
+        
+        x.clono <- merge(tra.clonos, trb.clonos, by='CellID')
+        x.clono$TCR.Group <- paste(x.clono$TRA.Group, x.clono$TRB.Group, sep=":")
+        tcr.group.list[[paste(x.d, j.type, sep="_")]] <- x.clono
+        
+        # remove cells that > 2 clones
+        x.tra.tab <- table(x.clono$CellID, x.clono$TRA.Group)
+        x.mult.tra <- rownames(x.tra.tab)[rowSums(x.tra.tab) > 1]
+        
+        x.trb.tab <- table(x.clono$CellID, x.clono$TRB.Group)
+        x.mult.trb <- rownames(x.trb.tab)[rowSums(x.trb.tab) > 1]
+        
+        # drop with > 1 beta AND > 1 alpha too
+        x.true.multi <- setdiff(unique(c(multi.alpha, multi.beta)), intersect(multi.alpha, multi.beta))
+        drop.cells <- intersect(multi.alpha, multi.beta)
+        x.clono <- x.clono[!x.clono$CellID %in% drop.cells, ]
+        
+        x.dup.cells <- x.clono[x.clono$CellID %in% x.true.multi,]
+        x.multi.groups <- sapply(x.true.multi, 
+                                 FUN=function(X) paste(x.dup.cells[x.dup.cells$CellID %in% X, ]$TCR.Group, collapse=":"))
+        
+        if(nrow(x.dup.cells) > 0){
+            x.clono.dup <- data.frame("CellID"=names(x.multi.groups), "TCR.Group"=x.multi.groups)
+            x.clono.dup$TRA.Group <- gsub(x.clono.dup$TCR.Group,
+                                          pattern="(\\S+):(\\S+):(\\S+):(\\S+)",
+                                          replacement="\\1:\\3")
+            x.clono.dup$TRB.Group <- gsub(x.clono.dup$TCR.Group,
+                                          pattern="(\\S+):(\\S+):(\\S+):(\\S+)",
+                                          replacement="\\2:\\4")
+            
+            x.clono.dup <- x.clono.dup[, c("CellID", "TRA.Group", "TRB.Group", "TCR.Group")]
+            x.clono <- x.clono[!x.clono$CellID %in% x.clono.dup$CellID, ]
+            x.clono <- do.call(rbind.data.frame,
+                               list(x.clono, x.clono.dup))
+        }
+        
+        keep.bcs <- c(keep.bcs, x.clono$CellID)
+        
+        # only keep the expanded clones
+        x.clono <- x.clono[x.clono$TCR.Group %in% expanded.clones, ]
+        
+        if(nrow(x.clono) > 0){
+            clon.tab <- table(x.clono$TCR.Group)
+            clon.freq <- length(clon.tab)/nrow(x.clono)
+            
+            # we should compute the Gini index
+            clon.gini <- Gini(clon.tab)
+            
+            exp.clono.freq.list[[paste(x.d, j.type, sep="_")]] <- data.frame("sample_id"=x.d,
+                                                                             "Sub.Annotation"=j.type,
+                                                                             "TCR.Gini"=clon.gini,
+                                                                             "Prop.Clonotypes"=clon.freq)
+        }
+    }
+}
+
+exp.clon.freq.df <- do.call(rbind.data.frame, exp.clono.freq.list)
+exp.clon.freq.df$donor_id <- gsub(exp.clon.freq.df$sample_id, pattern="(BGCV[0-9]+)_(CV[0-9]+)", replacement="\\2")
+exp.clon.freq.merge <- merge(exp.clon.freq.df, covid.meta, by=c('sample_id')) 
+exp.clon.freq.merge <- exp.clon.freq.merge[!exp.clon.freq.merge$D0_status_summary %in% c("Non_covid", "LPS"), ]
+exp.clon.freq.merge$D0_status_summary <- factor(exp.clon.freq.merge$D0_status_summary,
+                                            levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+exp.clon.freq.merge$Sex[exp.clon.freq.merge$Sex %in% c("M")] <- "Male"
+exp.clon.freq.merge$Sex[exp.clon.freq.merge$Sex %in% c("F")] <- "Female"
+```
+
+Plot the TCR clonotype diveristy _within_ the expanded clones only.
+
+
+```{r, fig.height=5.95, fig.width=9.95}
+ggplot(exp.clon.freq.merge[exp.clon.freq.merge$Sub.Annotation %in% c("CD4.Mem", "CD4.Naive", "CD4.Tfh", "CD4.Th1", "CD4.IL22",
+                                                                     "CD4.Prolif", "CD8.Prolif",
+                                                                     "CD8.Mem", "CD8.Naive", "CD8.TE", "Treg"), ],
+       aes(x=D0_status_summary, y=TCR.Gini, fill=D0_status_summary)) +
+    geom_boxplot() +
+    theme_cowplot() +
+    scale_fill_manual(values=group.cols) +
+    facet_wrap(~Sub.Annotation, scales="free_y") +
+    labs(x="Severity", y="Clonalal Diversity\n(Gini Index)") +
+    expand_limits(y=c(0)) +
+    theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14),
+          axis.text.x=element_blank()) +
+    guides(fill=guide_legend(title="Severity")) +
+    NULL + 
+    ggsave("~/Dropbox/COVID19/plot.dir/ExpandedClones_TCRclonality-boxplot_severity.pdf",
+           height=5.95, width=9.95, useDingbats=FALSE)
+```
+
+Are these changes robust?? I'll consider only the infected cases for this analysis.
+
+```{r}
+clonal.lm.list <- list()
+exp.covid.freq.merge <- exp.clon.freq.merge
+exp.covid.freq.merge$OrderedStatus <- ordered(exp.covid.freq.merge$D0_status_summary,
+                                          levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+c.types <- c("CD4.CM", "CD4.EM", "CD4.Naive", "CD4.Th1", "CD4.Tfh", "CD4.Prolif", "CD4.IL22", "CD8.EM", "CD8.Naive", "CD8.TE", "CD8.Prolif")
+for(i in seq_along(c.types)){
+    i.c <- c.types[i]
+    i.clono.tcr.lm <- lm(1 - Prop.Clonotypes ~ Age + Site + Sex + OrderedStatus, 
+                             data=exp.covid.freq.merge[exp.covid.freq.merge$Sub.Annotation %in% c(i.c), ])
+    i.lm.res <- summary(i.clono.tcr.lm)
+    clonal.lm.list[[i.c]] <- data.frame("Agg.Cell"=rep(i.c, nrow(i.lm.res$coefficients)),
+                                        "Beta"=i.lm.res$coefficients[, 1],
+                                        "SE"=i.lm.res$coefficients[, 2],
+                                        "STAT"=i.lm.res$coefficients[, 3],
+                                        "Pvalue"=i.lm.res$coefficients[, 4],
+                                        "Predictor"=rownames(i.lm.res$coefficients))
+}
+
+clono.lm.df <- do.call(rbind.data.frame, clonal.lm.list)
+clono.lm.df$Predictor <- gsub(clono.lm.df$Predictor, pattern="D0_status_summary", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=8.95, fig.width=9.95}
+# ignore anything 3rd order and higher
+ggplot(clono.lm.df[!clono.lm.df$Predictor %in% c("OrderedStatus^5", "OrderedStatus^4", "OrderedStatus.C"), ], 
+       aes(x=Predictor, y=Beta, fill=Pvalue < 0.05)) +
+    geom_hline(yintercept=0, lty=2, col='grey70') +
+    geom_errorbar(aes(ymin=Beta-SE, ymax=Beta+SE)) +
+    geom_point(shape=22, size=3) +
+    theme_cowplot() +
+     theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    coord_flip() +
+    scale_fill_manual(values=c("blue", "orange")) +
+    facet_wrap(~Agg.Cell, scales="free_x")  + 
+    ggsave("~/Dropbox/COVID19/plot.dir/Expanded_TCRclonality-LM_ordered.pdf",
+           height=8.95, width=9.95, useDingbats=FALSE)
+```
+
+The CD8.TE are slightly more diverse with age and CD8.Prolif are less diverse in Males. The only other differences for clonally expanded TCR diversity 
+are between collection sites.
+
+
+```{r}
+clonal.lm.list <- list()
+exp.covid.freq.merge <- exp.clon.freq.merge
+exp.covid.freq.merge$OrderedStatus <- ordered(exp.covid.freq.merge$D0_status_summary,
+                                          levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+exp.covid.freq.merge$High.Annotation <- exp.covid.freq.merge$Sub.Annotation
+exp.covid.freq.merge$High.Annotation[exp.covid.freq.merge$Sub.Annotation %in% c("CD4.CM", "CD4.EM", "CD4.Naive", "CD4.Th1", "CD4.Th2", "CD4.Th17",
+                                                                                "CD4.IL22", "CD4.Tfh", "Treg", "CD4.Prolif")] <- "CD4"
+exp.covid.freq.merge$High.Annotation[exp.covid.freq.merge$Sub.Annotation %in% c("CD8.EM", "CD8.TE", "CD8.Naive", "CD8.Prolif")] <- "CD8"
+
+c.types <- c("CD4", "CD8", "gdT", "MAIT", "NKT")
+
+for(i in seq_along(c.types)){
+    i.c <- c.types[i]
+    i.clono.tcr.lm <- lm(1 - Prop.Clonotypes ~ Age + Site + Sex + OrderedStatus, 
+                             data=exp.covid.freq.merge[exp.covid.freq.merge$High.Annotation %in% c(i.c), ])
+    i.lm.res <- summary(i.clono.tcr.lm)
+    clonal.lm.list[[i.c]] <- data.frame("Agg.Cell"=rep(i.c, nrow(i.lm.res$coefficients)),
+                                        "Beta"=i.lm.res$coefficients[, 1],
+                                        "SE"=i.lm.res$coefficients[, 2],
+                                        "STAT"=i.lm.res$coefficients[, 3],
+                                        "Pvalue"=i.lm.res$coefficients[, 4],
+                                        "Predictor"=rownames(i.lm.res$coefficients))
+}
+
+clono.lm.df <- do.call(rbind.data.frame, clonal.lm.list)
+clono.lm.df$Predictor <- gsub(clono.lm.df$Predictor, pattern="D0_status_summary", replacement="")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=3.95, fig.width=9.95}
+# ignore anything 3rd order and higher
+ggplot(clono.lm.df[!clono.lm.df$Predictor %in% c("OrderedStatus^5", "OrderedStatus^4", "OrderedStatus.C"), ], 
+       aes(x=Predictor, y=Beta, fill=Pvalue < 0.05)) +
+    geom_hline(yintercept=0, lty=2, col='grey70') +
+    geom_errorbar(aes(ymin=Beta-SE, ymax=Beta+SE)) +
+    geom_point(shape=22, size=3) +
+    theme_cowplot() +
+     theme(strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=14)) +
+    coord_flip() +
+    scale_fill_manual(values=c("blue", "orange")) +
+    facet_wrap(~Agg.Cell, scales="free_x", nrow=1)  + 
+    ggsave("~/Dropbox/COVID19/plot.dir/Expanded-All_TCRclonality-LM_ordered.pdf",
+           height=3.95, width=9.95, useDingbats=FALSE)
+```
+
+Clonal diveristy at this higher level is no different across disease severity.
