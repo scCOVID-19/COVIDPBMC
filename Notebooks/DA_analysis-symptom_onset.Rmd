@@ -1,0 +1,235 @@
+---
+title: "COVID19: Differential abundance based on symptom onset"
+output: html_notebook
+---
+
+Performing differential abundance testing using a negative binomial GLM. Cell counts per donor sample are used as input, and the total number of cells 
+captured (after QC) are used to normalize the model counts. This notebook is concerned with using the initial clustering results and their differential 
+abundance according to symptom onset in hospitalised patients.
+
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggsci)
+library(cowplot)
+library(RColorBrewer)
+library(reshape2)
+library(colorspace)
+library(ggthemes)
+library(edgeR)
+library(scales)
+library(ggrepel)
+library(dplyr)
+```
+
+
+```{r}
+covid.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
+                        header=TRUE, stringsAsFactors=FALSE)
+
+covid.meta$Days_from_onset[covid.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
+covid.meta$Days_from_onset <- as.numeric(covid.meta$Days_from_onset)
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+all.meta <- read.table("~/Dropbox/COVID19/Data/COVID19_scMeta-data.tsv",
+                       sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(all.meta) <- all.meta$CellID
+
+doublet.remove <- read.table("~/Dropbox/COVID19/Data/All_doublets.tsv",
+                             sep="\t", header=FALSE, stringsAsFactors=FALSE)
+
+# remove BGCV01_CV0209 and CV0198
+all.meta <- all.meta[!all.meta$sample_id %in% c("BGCV01_CV0902"), ]
+all.meta <- all.meta[!all.meta$patient_id %in% c("CV0198"), ]
+all.meta$Days_from_onset[all.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
+all.meta$Days_from_onset <- as.numeric(all.meta$Days_from_onset)
+
+initial_clustering <- read.table("~/Dropbox/COVID19/Data/combined_dec_MetaData.txt",
+                                 sep="\t", header=TRUE, stringsAsFactors=FALSE, row.names=1)
+rownames(initial_clustering) <- gsub(rownames(initial_clustering), pattern="^b", replacement="")
+initial_clustering$initial_clustering <- gsub(initial_clustering$initial_clustering, pattern="^b", replacement="")
+initial_clustering$CellID <- rownames(initial_clustering)
+
+all.meta <- merge(all.meta, initial_clustering[, c("CellID", "initial_clustering")], by='CellID')
+
+n.cell.vecc <- table(all.meta$sample_id)
+
+all.meta <- all.meta[!all.meta$CellID %in% doublet.remove$V1, ]
+```
+
+
+```{r}
+cell.xtab <- as.data.frame(xtabs( ~ sample_id +  initial_clustering, data=all.meta))
+cell.cast <- dcast(cell.xtab, sample_id ~ initial_clustering, value.var='Freq')
+rownames(cell.cast) <- cell.cast$sample_id
+cell.cast <- cell.cast[, -1]
+cell.freq <- as.data.frame(t(sapply(rownames(cell.cast), FUN=function(X) as.numeric(cell.cast[X, ]/n.cell.vecc[X]),
+                                    simplify=TRUE)))
+
+rownames(cell.freq) <- rownames(cell.cast)
+colnames(cell.freq) <- colnames(cell.cast)
+cell.freq$sample_id <- rownames(cell.cast)
+cell.melt <- melt(cell.freq, id.vars=c('sample_id'))
+colnames(cell.melt) <- c("sample_id", "CellType", "Freq")
+cell.melt$CellType <- as.character(cell.melt$CellType)
+
+cell.freq.merge <- merge(cell.melt, covid.meta, by='sample_id')
+```
+
+
+## Cluster-based DA analysis: days since symptom onset
+
+```{r}
+# set up testing model
+rownames(covid.meta) <- covid.meta$sample_id
+init.meta <- covid.meta[!covid.meta$D0_status_summary %in% c("Non_covid", "LPS", "Healthy"), ]
+init.meta$OrderedSeverity <- ordered(init.meta$D0_status_summary,
+                                      levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+init.meta <- init.meta[init.meta$D0_status_summary %in% c("Mild", "Moderate", "Severe", "Critical"), ]
+
+init.meta$Days_from_onset[init.meta$Days_from_onset %in% c("Not_known")] <- NA
+init.meta$Days_from_onset <- as.numeric(init.meta$Days_from_onset)
+init.meta <- init.meta[!is.na(init.meta$Days_from_onset), ]
+
+init.model <- model.matrix(~ Sex + Age + Site + Days_from_onset, 
+                            data=init.meta[init.meta$Collection_Day %in% c("D0"), ])
+
+# count cells
+cell.freq.tab <- t(table(all.meta$sample_id[all.meta$Collection_Day %in% c("D0") &
+                                                !is.na(all.meta$Days_from_onset) &
+                                                !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")],
+                         all.meta$initial_clustering[all.meta$Collection_Day %in% c("D0") &
+                                                         !is.na(all.meta$Days_from_onset) &
+                                                         !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")]))
+
+cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublet", "Doublets", "Doublets:Bcell", "Doublets:Platelet"), ]
+test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
+cell.freq.tab <- cell.freq.tab[, test.samps]
+init.model <- init.model[colnames(cell.freq.tab), ]
+
+init.dge <- DGEList(cell.freq.tab, lib.size=log(n.cell.vecc[test.samps]))
+
+#estimate dispersions
+init.dge <- estimateDisp(init.dge, design=init.model)
+init.linear.fit <- glmQLFit(init.dge, init.model, robust=TRUE)
+init.res <- as.data.frame(topTags(glmQLFTest(init.linear.fit, coef=4), sort.by='none', n=Inf))
+init.res$CellType <- rownames(init.res)
+
+init.res$Sig <- as.numeric(init.res$FDR < 0.1)
+init.res$Diff <- sign(init.res$logFC)
+init.res$Diff[init.res$FDR > 0.1] <- 0
+table(init.res$Diff)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=4.15}
+mx.lfc <- max(abs(init.res$logFC))
+eps <- mx.lfc * 0.05
+
+init.resplot.labels <- init.res$CellType
+init.resplot.labels[init.res$Sig == 0] <- ""
+
+ggplot(init.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
+    geom_point(shape=21, size=4) +
+    theme_cowplot() +
+    scale_fill_manual(values=c("black", "red")) +
+    scale_x_continuous(limits=c(-mx.lfc - eps, mx.lfc + eps), oob=squish) +
+    guides(fill=guide_legend(title="FDR < 0.1")) +
+    geom_text_repel(aes(label=init.resplot.labels),
+                     fill='white') +
+    labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/All_edgeR_volcano_daysOnset-linear.pdf",
+           height=2.95, width=4.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+Show a plot of just the DA clusters.
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.15, fig.width=9.95}
+da.clusters <- unique(c(init.resplot.labels))
+
+group.cols <- c("#2ca02c", "#1f77b4", "#9467bd", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#252525")
+names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+
+# censor outliers to the 95th quantile for each cell type.
+plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                                   !cell.freq.merge$D0_status_summary %in% c("LPS", "Non_covid") &
+                                   !is.na(cell.freq.merge$Days_from_onset) &
+                                   cell.freq.merge$CellType %in% da.clusters, ]
+
+q95.ct <- sapply(unique(plotting.df$CellType),
+                 FUN=function(x) quantile(plotting.df[plotting.df$CellType %in% x, ]$Freq, c(0.05, 0.95), na.rm=TRUE)[2])
+q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacement=""), "Q95"=q95.ct)
+
+plotting.df <- merge(plotting.df, q95.df, by='CellType')
+plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
+
+plotting.df$D0_status_summary <- ordered(plotting.df$D0_status_summary,
+                                         levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy", "Asymptomatic"), ],
+       aes(x=Days_from_onset, y=Freq)) +
+    #geom_boxplot(outlier.size=0.5, coef=1.5) +
+    geom_point(aes(colour=D0_status_summary), size=1) +
+    stat_smooth(method=MASS::rlm) +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y", nrow=3) +
+    scale_colour_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(aspect=1/1.3,
+          legend.key.size=unit(0.4, "cm"),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=12)) +
+    labs(x="Severity", y="Proportion") +
+    guides(colour=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/All_proportions-DA_daysOnset-points.pdf",
+           height=5.15, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+write.table(init.res,
+            file="~/Dropbox/COVID19/Data/SymptomOnset_resTable.txt",
+            sep="\t", quote=FALSE, row.names=FALSE)
+
+# print P-values to html table
+clon.lm.pvalues <- data.frame("CellType"=init.res$CellType, "logFC"=init.res$logFC,
+                              "Pvalue"=init.res$PValue,
+                              "FDR"=init.res$FDR)
+
+kbl(clon.lm.pvalues) %>% kable_paper(full_width=FALSE) %>% 
+    save_kable("~/Dropbox/COVID19/plot.dir/DA_symptomOnset_trend_pvals.html",
+               self_contained=TRUE)
+
+kable(clon.lm.pvalues)
+```
+
+
+Plot days since symptom onset by disease severity.
+
+```{r, fig.height=2.95, fig.width=3.95,}
+covid.meta$OrderedSeverity <- ordered(covid.meta$D0_status_summary,
+                                      levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
+                      !covid.meta$D0_status_summary %in% c("LPS", "Non_covid") &
+                      !is.na(covid.meta$Days_from_onset), ],
+       aes(x=OrderedSeverity, y=Days_from_onset)) +
+    geom_boxplot() +
+    labs(x="Disease severity", y="Days from\nsymptom onset") +
+    theme_cowplot()  +
+    theme(aspect=1,
+          axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
+    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_severity-boxplot.pdf",
+           height=2.95, width=3.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
