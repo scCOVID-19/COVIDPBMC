@@ -20,6 +20,7 @@ library(edgeR)
 library(scales)
 library(ggrepel)
 library(dplyr)
+library(kableExtra)
 ```
 
 
@@ -30,6 +31,46 @@ covid.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
 covid.meta$Days_from_onset[covid.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
 covid.meta$Days_from_onset <- as.numeric(covid.meta$Days_from_onset)
 ```
+
+Plot days since symptom onset by disease severity and Site.
+
+```{r, fig.height=2.95, fig.width=3.95,}
+covid.meta$OrderedSeverity <- ordered(covid.meta$D0_status_summary,
+                                      levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
+                      !covid.meta$D0_status_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
+                      !is.na(covid.meta$Days_from_onset), ],
+       aes(x=OrderedSeverity, y=Days_from_onset)) +
+    geom_boxplot() +
+    labs(x="Disease severity", y="Days from\nsymptom onset") +
+    theme_cowplot()  +
+    theme(aspect=1,
+          axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
+    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_severity-boxplot.pdf",
+           height=2.95, width=3.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+```{r, fig.height=2.95, fig.width=3.95,}
+covid.meta$OrderedSeverity <- ordered(covid.meta$D0_status_summary,
+                                      levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
+                      !covid.meta$D0_status_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
+                      !is.na(covid.meta$Days_from_onset), ],
+       aes(x=Site, y=Days_from_onset)) +
+    geom_boxplot() +
+    labs(x="Disease severity", y="Days from\nsymptom onset") +
+    theme_cowplot()  +
+    theme(aspect=1,
+          axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
+    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_Site-boxplot.pdf",
+           height=2.95, width=3.95, useDingbats=FALSE) +
+    NULL
+```
+
 
 
 ```{r, warning=FALSE, message=FALSE}
@@ -191,6 +232,7 @@ ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy", "Asymptomati
     NULL
 ```
 
+Many of these changes seem to be driven by critically ill patients.
 
 
 ```{r, warning=FALSE, message=FALSE}
@@ -211,25 +253,166 @@ kable(clon.lm.pvalues)
 ```
 
 
-Plot days since symptom onset by disease severity.
+## Cluster-based DA analysis: days since symptom onset - excluding critical patients
 
-```{r, fig.height=2.95, fig.width=3.95,}
-covid.meta$OrderedSeverity <- ordered(covid.meta$D0_status_summary,
-                                      levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+```{r}
+# set up testing model
+rownames(covid.meta) <- covid.meta$sample_id
+sanscrit.meta <- covid.meta[!covid.meta$D0_status_summary %in% c("Non_covid", "LPS", "Healthy", "Critical"), ]
+sanscrit.meta$Days_from_onset[sanscrit.meta$Days_from_onset %in% c("Not_known")] <- NA
+sanscrit.meta$Days_from_onset <- as.numeric(sanscrit.meta$Days_from_onset)
+sanscrit.meta <- sanscrit.meta[!is.na(sanscrit.meta$Days_from_onset), ]
 
-ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
-                      !covid.meta$D0_status_summary %in% c("LPS", "Non_covid") &
-                      !is.na(covid.meta$Days_from_onset), ],
-       aes(x=OrderedSeverity, y=Days_from_onset)) +
-    geom_boxplot() +
-    labs(x="Disease severity", y="Days from\nsymptom onset") +
-    theme_cowplot()  +
-    theme(aspect=1,
-          axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
-    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_severity-boxplot.pdf",
-           height=2.95, width=3.95, useDingbats=FALSE) +
+sanscrit.model <- model.matrix(~ Sex + Age + Site + Days_from_onset, 
+                            data=sanscrit.meta[sanscrit.meta$Collection_Day %in% c("D0"), ])
+
+# count cells
+cell.freq.tab <- t(table(all.meta$sample_id[all.meta$Collection_Day %in% c("D0") &
+                                                !is.na(all.meta$Days_from_onset) &
+                                                !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic", "Critical")],
+                         all.meta$initial_clustering[all.meta$Collection_Day %in% c("D0") &
+                                                         !is.na(all.meta$Days_from_onset) &
+                                                         !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic", "Critical")]))
+
+cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublet", "Doublets", "Doublets:Bcell", "Doublets:Platelet"), ]
+test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
+cell.freq.tab <- cell.freq.tab[, test.samps]
+sanscrit.model <- sanscrit.model[colnames(cell.freq.tab), ]
+
+sanscrit.dge <- DGEList(cell.freq.tab, lib.size=log(n.cell.vecc[test.samps]))
+
+#estimate dispersions
+sanscrit.dge <- estimateDisp(sanscrit.dge, design=sanscrit.model)
+sanscrit.linear.fit <- glmQLFit(sanscrit.dge, sanscrit.model, robust=TRUE)
+sanscrit.res <- as.data.frame(topTags(glmQLFTest(sanscrit.linear.fit, coef=4), sort.by='none', n=Inf))
+sanscrit.res$CellType <- rownames(sanscrit.res)
+
+sanscrit.res$Sig <- as.numeric(sanscrit.res$FDR < 0.1)
+sanscrit.res$Diff <- sign(sanscrit.res$logFC)
+sanscrit.res$Diff[sanscrit.res$FDR > 0.1] <- 0
+table(sanscrit.res$Diff)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=4.15}
+mx.lfc <- max(abs(sanscrit.res$logFC))
+eps <- mx.lfc * 0.05
+
+sanscrit.resplot.labels <- sanscrit.res$CellType
+sanscrit.resplot.labels[sanscrit.res$Sig == 0] <- ""
+
+ggplot(sanscrit.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
+    geom_point(shape=21, size=4) +
+    theme_cowplot() +
+    scale_fill_manual(values=c("black", "red")) +
+    scale_x_continuous(limits=c(-mx.lfc - eps, mx.lfc + eps), oob=squish) +
+    guides(fill=guide_legend(title="FDR < 0.1")) +
+    geom_text_repel(aes(label=sanscrit.resplot.labels),
+                     fill='white') +
+    labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
+    ggsave("~/Dropbox/COVID19/plot.dir/All_edgeR_volcano_daysOnset-noCritical-linear.pdf",
+           height=2.95, width=4.15, useDingbats=FALSE) +
     NULL
 ```
+
+
+Show a plot of just the DA clusters.
+
+```{r, warning=FALSE, message=FALSE, fig.height=5.15, fig.width=9.95}
+da.clusters <- unique(c(sanscrit.resplot.labels))
+
+group.cols <- c("#2ca02c", "#1f77b4", "#9467bd", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#252525")
+names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+
+# censor outliers to the 95th quantile for each cell type.
+plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                                   !cell.freq.merge$D0_status_summary %in% c("LPS", "Non_covid") &
+                                   !is.na(cell.freq.merge$Days_from_onset) &
+                                   cell.freq.merge$CellType %in% da.clusters, ]
+
+q95.ct <- sapply(unique(plotting.df$CellType),
+                 FUN=function(x) quantile(plotting.df[plotting.df$CellType %in% x, ]$Freq, c(0.05, 0.95), na.rm=TRUE)[2])
+q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacement=""), "Q95"=q95.ct)
+
+plotting.df <- merge(plotting.df, q95.df, by='CellType')
+plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
+
+plotting.df$D0_status_summary <- ordered(plotting.df$D0_status_summary,
+                                         levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe"))
+
+ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy", "Asymptomatic", "Critical"), ],
+       aes(x=Days_from_onset, y=Freq)) +
+    #geom_boxplot(outlier.size=0.5, coef=1.5) +
+    geom_point(aes(colour=D0_status_summary), size=1) +
+    stat_smooth(method=MASS::rlm) +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y", nrow=3) +
+    scale_colour_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(aspect=1/1.3,
+          legend.key.size=unit(0.4, "cm"),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=12)) +
+    labs(x="Severity", y="Proportion") +
+    guides(colour=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/plot.dir/All_proportions-DA_daysOnset-noCritical-points.pdf",
+           height=5.15, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+Many of these changes seem to be driven by critically ill patients.
+
+
+```{r, warning=FALSE, message=FALSE}
+write.table(sanscrit.res,
+            file="~/Dropbox/COVID19/Data/SymptomOnset-noCritical_resTable.txt",
+            sep="\t", quote=FALSE, row.names=FALSE)
+
+# print P-values to html table
+clon.lm.pvalues <- data.frame("CellType"=sanscrit.res$CellType, "logFC"=sanscrit.res$logFC,
+                              "Pvalue"=sanscrit.res$PValue,
+                              "FDR"=sanscrit.res$FDR)
+
+kbl(clon.lm.pvalues) %>% kable_paper(full_width=FALSE) %>% 
+    save_kable("~/Dropbox/COVID19/plot.dir/DA_symptomOnset-noCritical_trend_pvals.html",
+               self_contained=TRUE)
+
+kable(clon.lm.pvalues)
+```
+
+
+Compare the log fold changes with and without the critical patients.
+
+```{r}
+colnames(init.res) <- c(paste0("Full.", colnames(init.res)[c(1:5)]), "CellType", "Full.Sig", "Full.Diff")
+colnames(sanscrit.res) <- c(paste0("woCritical.", colnames(sanscrit.res)[c(1:5)]), "CellType", "woCritical.Sig", "woCritical.Diff")
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=2.95}
+compare.model <- merge(init.res, sanscrit.res, by='CellType')
+
+compare.model$Sigs <- 0
+compare.model$Sigs[compare.model$Full.Sig == 1 & compare.model$woCritical.Sig == 1] <- 1
+
+cell.labels <- compare.model$CellType
+cell.labels[compare.model$Sigs == 0] <- ""
+
+ggplot(compare.model, aes(x=Full.logFC, y=woCritical.logFC)) +
+    geom_hline(yintercept=0, lty=2) +
+    geom_vline(xintercept=0, lty=2) +
+    geom_point() +
+    theme_cowplot() +
+    labs(x="log Fold Change: Full model",
+         y="log Fold Change: w/o Critical") +
+    geom_text_repel(aes(label=cell.labels),
+                    force=50) +
+    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_compare-points.pdf",
+           height=2.95, width=2.95, useDingbats=FALSE) +
+    NULL
+```
+
 
 
 
