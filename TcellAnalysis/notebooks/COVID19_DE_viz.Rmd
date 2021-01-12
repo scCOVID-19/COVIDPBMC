@@ -1,0 +1,1631 @@
+---
+title: "COVID19: DGE visualisation"
+output: html_notebook
+---
+
+This is to visualise the output from DE testing run on each T cell subset, either comparing across linear and quadratic trends.
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggthemes)
+library(ggsci)
+library(scales)
+library(enrichR)
+library(ggrepel)
+library(cowplot)
+```
+
+
+# DGE testing across COVID19 severity - linear trends
+
+Testing for a linear trend across disease severity, from healthy through to critical.
+
+```{r}
+dge.files <- list.files("~/Dropbox/COVID19/Data/DEResults.dir/", pattern="\\.L\\.csv")
+linear.dge.list <- list()
+
+for(x in seq_along(dge.files)){
+    x.csv <- read.csv(paste0("~/Dropbox/COVID19/Data/DEResults.dir/", dge.files[x]),
+                      header=TRUE, stringsAsFactors=FALSE)
+    x.annot <- gsub(dge.files[x], pattern="DE_(\\S*)_Severity\\.L\\.csv", replacement="\\1")
+    x.csv$Sub.Annotation <- x.annot
+    linear.dge.list[[dge.files[x]]] <- x.csv
+}
+
+linear.dge.df <- do.call(rbind.data.frame, linear.dge.list)
+linear.dge.df$Diff <- sign(linear.dge.df$logFC)
+linear.dge.df$Diff[linear.dge.df$FDR >= 0.01] <- 0
+
+table(linear.dge.df$Diff, linear.dge.df$Sub.Annotation)
+```
+
+There are variable numbers of gene DE across categories, but generally quite a small number. 
+
+```{r}
+# collect all de genes for plotting
+de.genes.all <- unique(linear.dge.df$X[linear.dge.df$FDR < 0.01])
+
+write.table(de.genes.all,
+            file="~/Dropbox/COVID19/Data/DEResults.dir/ALL_linear_DEgenes.tsv",
+            quote=FALSE, row.names=FALSE, sep="\t")
+```
+
+
+## CD4.CM
+
+```{r}
+enrich.dbs <- c("Transcription_Factor_PPIs", "MSigDB_Computational", "MSigDB_Hallmark_2020", 
+                "UK_Biobank_GWAS_v1", "KEGG_2019_Human", "GO_Biological_Process_2018")
+```
+
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd4.cm.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.CM"), ]$X
+cd4.cm.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.CM"), ]$FDR > 1e-3] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.CM"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd4.cm.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.CM-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd4.cm.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.CM") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd4.cm.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.CM") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.msigdb.up <- cd4.cm.enriched.up[["MSigDB_Hallmark_2020"]]
+cd4.msigdb.up$Dir <- "Up"
+
+cd4.msigdb.down <- cd4.cm.enriched.down[["MSigDB_Hallmark_2020"]]
+cd4.msigdb.down$Dir <- "Down"
+
+cd4.msigdb <- do.call(rbind.data.frame, list(cd4.msigdb.up, cd4.msigdb.down))
+cd4.msigdb$logP <- -log10(cd4.msigdb$P.value)
+cd4.msigdb$logP[cd4.msigdb$Dir %in% c("Down")] <- -1 * cd4.msigdb$logP[cd4.msigdb$Dir %in% c("Down")]
+
+ggplot(cd4.msigdb[cd4.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.CM-linear_MSigDB_enriched.pdf",
+           height=4.15, width=4.15, useDingbats=FALSE) +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.tfppi.up <- cd4.cm.enriched.up[["Transcription_Factor_PPIs"]]
+cd4.tfppi.up$Dir <- "Up"
+
+cd4.tfppi.down <- cd4.cm.enriched.down[["Transcription_Factor_PPIs"]]
+cd4.tfppi.down$Dir <- "Down"
+
+cd4.tfppi <- do.call(rbind.data.frame, list(cd4.tfppi.up, cd4.tfppi.down))
+cd4.tfppi$logP <- -log10(cd4.tfppi$P.value)
+cd4.tfppi$logP[cd4.tfppi$Dir %in% c("Down")] <- -1 * cd4.tfppi$logP[cd4.tfppi$Dir %in% c("Down")]
+
+ggplot(cd4.tfppi[cd4.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    
+    theme_cowplot()
+```
+
+
+## CD4.Naive
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd4.naive.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Naive"), ]$X
+cd4.naive.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Naive"), ]$FDR > 1e-3] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Naive"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd4.naive.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Naive-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd4.naive.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Naive") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd4.naive.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Naive") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.naive.msigdb.up <- cd4.naive.enriched.up[["MSigDB_Hallmark_2020"]]
+cd4.naive.msigdb.up$Dir <- "Up"
+
+cd4.naive.msigdb.down <- cd4.naive.enriched.down[["MSigDB_Hallmark_2020"]]
+cd4.naive.msigdb.down$Dir <- "Down"
+
+cd4.naive.msigdb <- do.call(rbind.data.frame, list(cd4.naive.msigdb.up, cd4.naive.msigdb.down))
+cd4.naive.msigdb$logP <- -log10(cd4.naive.msigdb$P.value)
+cd4.naive.msigdb$logP[cd4.naive.msigdb$Dir %in% c("Down")] <- -1 * cd4.naive.msigdb$logP[cd4.naive.msigdb$Dir %in% c("Down")]
+
+ggplot(cd4.naive.msigdb[cd4.naive.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Naive-linear_MSigDB_enriched.pdf",
+           height=4.15, width=4.15, useDingbats=FALSE) +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.naive.tfppi.up <- cd4.naive.enriched.up[["Transcription_Factor_PPIs"]]
+cd4.naive.tfppi.up$Dir <- "Up"
+
+cd4.naive.tfppi.down <- cd4.naive.enriched.down[["Transcription_Factor_PPIs"]]
+cd4.naive.tfppi.down$Dir <- "Down"
+
+cd4.naive.tfppi <- do.call(rbind.data.frame, list(cd4.naive.tfppi.up, cd4.naive.tfppi.down))
+cd4.naive.tfppi$logP <- -log10(cd4.naive.tfppi$P.value)
+cd4.naive.tfppi$logP[cd4.naive.tfppi$Dir %in% c("Down")] <- -1 * cd4.naive.tfppi$logP[cd4.naive.tfppi$Dir %in% c("Down")]
+
+ggplot(cd4.naive.tfppi[cd4.naive.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD8.Naive
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd8.naive.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.Naive"), ]$X
+cd8.naive.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.Naive"), ]$FDR > 1e-3] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.Naive"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd8.naive.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.Naive-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd8.naive.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.Naive") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd8.naive.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.Naive") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.naive.msigdb.up <- cd8.naive.enriched.up[["MSigDB_Hallmark_2020"]]
+cd8.naive.msigdb.up$Dir <- "Up"
+
+cd8.naive.msigdb.down <- cd8.naive.enriched.down[["MSigDB_Hallmark_2020"]]
+cd8.naive.msigdb.down$Dir <- "Down"
+
+cd8.naive.msigdb <- do.call(rbind.data.frame, list(cd8.naive.msigdb.up, cd8.naive.msigdb.down))
+cd8.naive.msigdb$logP <- -log10(cd8.naive.msigdb$P.value)
+cd8.naive.msigdb$logP[cd8.naive.msigdb$Dir %in% c("Down")] <- -1 * cd8.naive.msigdb$logP[cd8.naive.msigdb$Dir %in% c("Down")]
+
+ggplot(cd8.naive.msigdb[cd8.naive.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.naive.tfppi.up <- cd8.naive.enriched.up[["Transcription_Factor_PPIs"]]
+cd8.naive.tfppi.up$Dir <- "Up"
+
+cd8.naive.tfppi.down <- cd8.naive.enriched.down[["Transcription_Factor_PPIs"]]
+cd8.naive.tfppi.down$Dir <- "Down"
+
+cd8.naive.tfppi <- do.call(rbind.data.frame, list(cd8.naive.tfppi.up, cd8.naive.tfppi.down))
+cd8.naive.tfppi$logP <- -log10(cd8.naive.tfppi$P.value)
+cd8.naive.tfppi$logP[cd8.naive.tfppi$Dir %in% c("Down")] <- -1 * cd8.naive.tfppi$logP[cd8.naive.tfppi$Dir %in% c("Down")]
+
+ggplot(cd8.naive.tfppi[cd8.naive.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD8.EM
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd8.em.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.EM"), ]$X
+cd8.em.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.EM"), ]$FDR > 1e-2] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.EM"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd8.em.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.EM-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd8.em.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.EM") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd8.em.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.EM") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.em.msigdb.up <- cd8.em.enriched.up[["MSigDB_Hallmark_2020"]]
+cd8.em.msigdb.up$Dir <- "Up"
+
+cd8.em.msigdb.down <- cd8.em.enriched.down[["MSigDB_Hallmark_2020"]]
+if(nrow(cd8.em.msigdb.down) > 0){
+    cd8.em.msigdb.down$Dir <- "Down"
+    cd8.em.msigdb <- do.call(rbind.data.frame, list(cd8.em.msigdb.up, cd8.em.msigdb.down))
+} else{
+    cd8.em.msigdb <- do.call(rbind.data.frame, list(cd8.em.msigdb.up))
+}
+    
+cd8.em.msigdb$logP <- -log10(cd8.em.msigdb$P.value)
+cd8.em.msigdb$logP[cd8.em.msigdb$Dir %in% c("Down")] <- -1 * cd8.em.msigdb$logP[cd8.em.msigdb$Dir %in% c("Down")]
+
+ggplot(cd8.em.msigdb[cd8.em.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.em.tfppi.up <- cd8.em.enriched.up[["Transcription_Factor_PPIs"]]
+cd8.em.tfppi.up$Dir <- "Up"
+
+cd8.em.tfppi.down <- cd8.em.enriched.down[["Transcription_Factor_PPIs"]]
+if(nrow(cd8.em.tfppi.down) > 0){
+    cd8.em.tfppi.down$Dir <- "Down"
+    cd8.em.tfppi <- do.call(rbind.data.frame, list(cd8.em.tfppi.up, cd8.em.tfppi.down))
+} else{
+    cd8.em.tfppi <- do.call(rbind.data.frame, list(cd8.em.tfppi.up))
+}
+cd8.em.tfppi$logP <- -log10(cd8.em.tfppi$P.value)
+cd8.em.tfppi$logP[cd8.em.tfppi$Dir %in% c("Down")] <- -1 * cd8.em.tfppi$logP[cd8.em.tfppi$Dir %in% c("Down")]
+
+ggplot(cd8.em.tfppi[cd8.em.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD8.TE
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd8.te.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.TE"), ]$X
+cd8.te.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.TE"), ]$FDR > 1e-2] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.TE"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd8.te.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.TE-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd8.te.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.TE") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd8.te.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.TE") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.te.msigdb.up <- cd8.te.enriched.up[["MSigDB_Hallmark_2020"]]
+cd8.te.msigdb.up$Dir <- "Up"
+
+cd8.te.msigdb.down <- cd8.te.enriched.down[["MSigDB_Hallmark_2020"]]
+if(nrow(cd8.te.msigdb.down) > 0){
+    cd8.te.msigdb.down$Dir <- "Down"
+}
+
+cd8.te.msigdb <- do.call(rbind.data.frame, list(cd8.te.msigdb.up, cd8.te.msigdb.down))
+cd8.te.msigdb$logP <- -log10(cd8.te.msigdb$P.value)
+cd8.te.msigdb$logP[cd8.te.msigdb$Dir %in% c("Down")] <- -1 * cd8.te.msigdb$logP[cd8.te.msigdb$Dir %in% c("Down")]
+
+ggplot(cd8.te.msigdb[cd8.te.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.te.tfppi.up <- cd8.te.enriched.up[["Transcription_Factor_PPIs"]]
+if(nrow(cd8.te.tfppi.up) > 0){
+    cd8.te.tfppi.up$Dir <- "Up"
+}
+
+cd8.te.tfppi.down <- cd8.te.enriched.down[["Transcription_Factor_PPIs"]]
+if(nrow(cd8.te.tfppi.down) > 0){
+    cd8.te.tfppi.down$Dir <- "Down"
+}
+
+cd8.te.tfppi <- do.call(rbind.data.frame, list(cd8.te.tfppi.up, cd8.te.tfppi.down))
+cd8.te.tfppi$logP <- -log10(cd8.te.tfppi$P.value)
+cd8.te.tfppi$logP[cd8.te.tfppi$Dir %in% c("Down")] <- -1 * cd8.te.tfppi$logP[cd8.te.tfppi$Dir %in% c("Down")]
+
+ggplot(cd8.te.tfppi[cd8.te.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD4.Tfh
+
+```{r, fig.height=3.95, fig.width=4.95}
+tfh.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ]$X
+tfh.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ]$FDR > 1e-3] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=tfh.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Tfh-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+tfh.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Tfh") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+tfh.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Tfh") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+tfh.msigdb.up <- tfh.enriched.up[["MSigDB_Hallmark_2020"]]
+tfh.msigdb.up$Dir <- "Up"
+
+tfh.msigdb.down <- tfh.enriched.down[["MSigDB_Hallmark_2020"]]
+tfh.msigdb.down$Dir <- "Down"
+
+tfh.msigdb <- do.call(rbind.data.frame, list(tfh.msigdb.up, tfh.msigdb.down))
+tfh.msigdb$logP <- -log10(tfh.msigdb$P.value)
+tfh.msigdb$logP[tfh.msigdb$Dir %in% c("Down")] <- -1 * tfh.msigdb$logP[tfh.msigdb$Dir %in% c("Down")]
+
+ggplot(tfh.msigdb[tfh.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+tfh.tfppi.up <- tfh.enriched.up[["Transcription_Factor_PPIs"]]
+tfh.tfppi.up$Dir <- "Up"
+
+tfh.tfppi.down <- tfh.enriched.down[["Transcription_Factor_PPIs"]]
+tfh.tfppi.down$Dir <- "Down"
+
+tfh.tfppi <- do.call(rbind.data.frame, list(tfh.tfppi.up, tfh.tfppi.down))
+tfh.tfppi$logP <- -log10(tfh.tfppi$P.value)
+tfh.tfppi$logP[tfh.tfppi$Dir %in% c("Down")] <- -1 * tfh.tfppi$logP[tfh.tfppi$Dir %in% c("Down")]
+
+ggplot(tfh.tfppi[tfh.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## gdT
+
+```{r, fig.height=3.95, fig.width=4.95}
+gdt.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("gdT"), ]$X
+gdt.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("gdT"), ]$FDR > 1e-3] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("gdT"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=gdt.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/gdT-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+gdt.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("gdT") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+gdt.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("gdT") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+gdt.msigdb.up <- gdt.enriched.up[["MSigDB_Hallmark_2020"]]
+gdt.msigdb.up$Dir <- "Up"
+
+gdt.msigdb.down <- gdt.enriched.down[["MSigDB_Hallmark_2020"]]
+if(!is.null(gdt.msigdb.down)){
+    gdt.msigdb.down$Dir <- "Down"
+
+    gdt.msigdb <- do.call(rbind.data.frame, list(gdt.msigdb.up, gdt.msigdb.down))
+    gdt.msigdb$logP <- -log10(gdt.msigdb$P.value)
+    gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")] <- -1 * gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")]
+} else{
+    gdt.msigdb <- do.call(rbind.data.frame, list(gdt.msigdb.up))
+    gdt.msigdb$logP <- -log10(gdt.msigdb$P.value)
+    gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")] <- -1 * gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")]
+}
+
+ggplot(gdt.msigdb[gdt.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+gdt.tfppi.up <- gdt.enriched.up[["Transcription_Factor_PPIs"]]
+gdt.tfppi.up$Dir <- "Up"
+
+gdt.tfppi.down <- gdt.enriched.down[["Transcription_Factor_PPIs"]]
+if(!is.null(gdt.tfppi.down)){
+    gdt.tfppi.down$Dir <- "Down"
+    
+    gdt.tfppi <- do.call(rbind.data.frame, list(gdt.tfppi.up, gdt.tfppi.down))
+    gdt.tfppi$logP <- -log10(gdt.tfppi$P.value)
+    gdt.tfppi$logP[gdt.tfppi$Dir %in% c("Down")] <- -1 * gdt.tfppi$logP[gdt.tfppi$Dir %in% c("Down")]
+} else{
+    gdt.tfppi <- do.call(rbind.data.frame, list(gdt.tfppi.up))
+    gdt.tfppi$logP <- -log10(gdt.tfppi$P.value)
+    gdt.tfppi$logP[gdt.tfppi$Dir %in% c("Down")] <- -1 * gdt.tfppi$logP[gdt.tfppi$Dir %in% c("Down")]
+}
+
+ggplot(gdt.tfppi[gdt.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+
+## MAIT
+
+```{r, fig.height=3.95, fig.width=4.95}
+mait.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("MAIT"), ]$X
+mait.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("MAIT"), ]$FDR > 1e-3] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("MAIT"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=mait.labels)) +
+        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/MAIT-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+mait.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("MAIT") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+mait.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("MAIT") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+mait.msigdb.up <- mait.enriched.up[["MSigDB_Hallmark_2020"]]
+mait.msigdb.up$Dir <- "Up"
+
+mait.msigdb.down <- mait.enriched.down[["MSigDB_Hallmark_2020"]]
+if(nrow(mait.msigdb.down) > 0){
+    mait.msigdb.down$Dir <- "Down"
+    mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.up, mait.msigdb.down))
+} else{
+    mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.up))
+}
+mait.msigdb$logP <- -log10(mait.msigdb$P.value)
+mait.msigdb$logP[mait.msigdb$Dir %in% c("Down")] <- -1 * mait.msigdb$logP[mait.msigdb$Dir %in% c("Down")]
+
+ggplot(mait.msigdb[mait.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+mait.tfppi.up <- mait.enriched.up[["Transcription_Factor_PPIs"]]
+mait.tfppi.up$Dir <- "Up"
+
+mait.tfppi.down <- mait.enriched.down[["Transcription_Factor_PPIs"]]
+if(nrow(mait.tfppi.down) > 0){
+    mait.tfppi.down$Dir <- "Down"
+    mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.up, mait.tfppi.down))
+} else{
+    mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.up))
+}
+mait.tfppi$logP <- -log10(mait.tfppi$P.value)
+mait.tfppi$logP[mait.tfppi$Dir %in% c("Down")] <- -1 * mait.tfppi$logP[mait.tfppi$Dir %in% c("Down")]
+
+ggplot(mait.tfppi[mait.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## Treg
+
+```{r, fig.height=3.95, fig.width=4.95}
+treg.labels <- linear.dge.df[linear.dge.df$Sub.Annotation %in% c("Treg"), ]$X
+treg.labels[linear.dge.df[linear.dge.df$Sub.Annotation %in% c("Treg"), ]$FDR > 1e-3] <- ""
+
+ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("Treg"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=treg.labels)) +
+        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Treg-linear_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+treg.enriched.up <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("Treg") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+treg.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("Treg") &
+                                                linear.dge.df$FDR < 0.01 &
+                                                linear.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+treg.msigdb.up <- treg.enriched.up[["MSigDB_Hallmark_2020"]]
+treg.msigdb.up$Dir <- "Up"
+
+treg.msigdb.down <- treg.enriched.down[["MSigDB_Hallmark_2020"]]
+if(!is.null(treg.msigdb.down)){
+    treg.msigdb.down$Dir <- "Down"
+}
+
+treg.msigdb <- do.call(rbind.data.frame, list(treg.msigdb.up, treg.msigdb.down))
+treg.msigdb$logP <- -log10(treg.msigdb$P.value)
+treg.msigdb$logP[treg.msigdb$Dir %in% c("Down")] <- -1 * treg.msigdb$logP[treg.msigdb$Dir %in% c("Down")]
+
+ggplot(treg.msigdb[treg.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+treg.tfppi.up <- treg.enriched.up[["Transcription_Factor_PPIs"]]
+treg.tfppi.up$Dir <- "Up"
+
+treg.tfppi.down <- treg.enriched.down[["Transcription_Factor_PPIs"]]
+if(!is.null(treg.tfppi.down)){
+    treg.tfppi.down$Dir <- "Down"
+}
+
+treg.tfppi <- do.call(rbind.data.frame, list(treg.tfppi.up, treg.tfppi.down))
+treg.tfppi$logP <- -log10(treg.tfppi$P.value)
+treg.tfppi$logP[treg.tfppi$Dir %in% c("Down")] <- -1 * treg.tfppi$logP[treg.tfppi$Dir %in% c("Down")]
+
+ggplot(treg.tfppi[treg.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+Aggregate all results from the linear trend analysis.
+
+```{r}
+cd4.msigdb$Sub.Annotation <- "CD4.CM"
+cd4.naive.msigdb$Sub.Annotation <- "CD4.Naive"
+cd8.naive.msigdb$Sub.Annotation <- "CD8.Naive"
+cd8.em.msigdb$Sub.Annotation <- "CD8.EM"
+cd8.te.msigdb$Sub.Annotation <- "CD8.TE"
+tfh.msigdb$Sub.Annotation <- "CD4.Tfh"
+treg.msigdb$Sub.Annotation <- "Treg"
+mait.msigdb$Sub.Annotation <- "MAIT"
+gdt.msigdb$Sub.Annotation <- "gdT"
+
+msigdb.linear.enrichments <- list(cd4.msigdb, cd4.naive.msigdb, cd8.naive.msigdb, cd8.em.msigdb, cd8.te.msigdb,
+                                  tfh.msigdb, treg.msigdb, mait.msigdb, gdt.msigdb)
+
+msigdb.linear.enrich.df <- do.call(rbind.data.frame,
+                                   msigdb.linear.enrichments)
+```
+
+```{r}
+cell.order <- c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Tfh",
+                "Treg", "CD8.Naive", "CD8.Activated", "CD8.Prolif", "CD8.CM", "CD8.TE", "CD8.EM", "gdT", "MAIT", "NKT")
+
+all.qual.cols <- brewer.pal.info[brewer.pal.info$category %in% c("qual") & brewer.pal.info$colorblind, ]
+col_vector = unlist(mapply(brewer.pal, all.qual.cols$maxcolors, rownames(all.qual.cols)))
+
+# cell.cols <- col_vector[c(1:7, 9:19)]
+cell.cols <- col_vector[c(1:17, 19, 20)]
+names(cell.cols) <- cell.order
+```
+
+
+```{r, fig.height=5.95, fig.width=6.95}
+ggplot(msigdb.linear.enrich.df[msigdb.linear.enrich.df$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP, colour=Sub.Annotation)) +
+    #geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point(size=3.5, shape=18) +
+    scale_colour_manual(values=cell.cols) +
+    #facet_wrap(~Term, scales="free_y", ncol=1) +
+    labs(x="Pathway", y="Odds Rato") +
+    guides(colour=guide_legend(title="Cell Type", override.aes=list(size=5, shape=18))) +
+    theme_cowplot() +
+    coord_flip() +
+    theme(panel.spacing=unit(0, "lines"),
+          strip.text=element_blank(),
+          strip.background=element_blank()) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Tcell-linear_MSigDB_enriched.pdf",
+           height=5.95, width=6.95, useDingbats=FALSE) +
+    NULL
+```
+
+And for the enriched TFs. Aggregate all results from the linear trend analysis.
+
+```{r}
+cd4.tfppi$Sub.Annotation <- "CD4.CM"
+cd4.naive.tfppi$Sub.Annotation <- "CD4.Naive"
+cd8.naive.tfppi$Sub.Annotation <- "CD8.Naive"
+cd8.em.tfppi$Sub.Annotation <- "CD8.EM"
+#cd8.te.tfppi$Sub.Annotation <- "CD8.TE"
+tfh.tfppi$Sub.Annotation <- "CD4.Tfh"
+treg.tfppi$Sub.Annotation <- "Treg"
+mait.tfppi$Sub.Annotation <- "MAIT"
+gdt.tfppi$Sub.Annotation <- "gdT"
+
+tfppi.linear.enrichments <- list(cd4.tfppi, cd4.naive.tfppi, cd8.naive.tfppi, cd8.em.tfppi, cd8.te.tfppi,
+                                  tfh.tfppi, treg.tfppi, mait.tfppi, gdt.tfppi)
+
+tfppi.linear.enrich.df <- do.call(rbind.data.frame,
+                                   tfppi.linear.enrichments)
+```
+
+
+```{r, fig.height=8.95, fig.width=6.95}
+ggplot(tfppi.linear.enrich.df[tfppi.linear.enrich.df$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP, colour=Sub.Annotation)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point(size=3.5, shape=18) +
+    scale_colour_manual(values=cell.cols) +
+    #facet_wrap(~Term, scales="free_y", ncol=1) +
+    labs(x="Pathway", y="Odds Rato") +
+    guides(colour=guide_legend(title="Cell Type", override.aes=list(size=5, shape=18))) +
+    theme_cowplot() +
+    coord_flip() +
+    theme(panel.spacing=unit(0, "lines"),
+          strip.text=element_blank(),
+          strip.background=element_blank()) +
+ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Tcell-linear_TFPPI_enriched.pdf",
+           height=5.95, width=6.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+
+# DGE testing across COVID19 severity - quadratic trends
+
+As the model above, but testing for a linear trend across disease severity, from healthy through to critical.
+
+```{r}
+dge.files <- list.files("~/Dropbox/COVID19/Data/DEResults.dir/", pattern="\\.Q\\.csv")
+quadratic.dge.list <- list()
+
+for(x in seq_along(dge.files)){
+    x.csv <- read.csv(paste0("~/Dropbox/COVID19/Data/DEResults.dir/", dge.files[x]),
+                      header=TRUE, stringsAsFactors=FALSE)
+    x.annot <- gsub(dge.files[x], pattern="DE_(\\S*)_Severity\\.Q\\.csv", replacement="\\1")
+    x.csv$Sub.Annotation <- x.annot
+    quadratic.dge.list[[dge.files[x]]] <- x.csv
+}
+
+quadratic.dge.df <- do.call(rbind.data.frame, quadratic.dge.list)
+quadratic.dge.df$Diff <- sign(quadratic.dge.df$logFC)
+quadratic.dge.df$Diff[quadratic.dge.df$FDR >= 0.01] <- 0
+
+table(quadratic.dge.df$Diff, quadratic.dge.df$Sub.Annotation)
+```
+
+
+There are variable numbers of gene DE across categories, but generally quite a small number. Somehow this doesn't feel right...
+
+## CD4.CM
+
+```{r}
+enrich.dbs <- c("Transcription_Factor_PPIs", "MSigDB_Computational", "MSigDB_Hallmark_2020", 
+                "UK_Biobank_GWAS_v1", "KEGG_2019_Human", "GO_Biological_Process_2018")
+```
+
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd4.cm.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.CM"), ]$X
+cd4.cm.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.CM"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.CM"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd4.cm.labels)) +
+        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.CM-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd4.cm.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.CM") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd4.cm.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.CM") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.msigdb.up <- cd4.cm.enriched.up[["MSigDB_Hallmark_2020"]]
+cd4.msigdb.up$Dir <- "Up"
+
+cd4.msigdb.down <- cd4.cm.enriched.down[["MSigDB_Hallmark_2020"]]
+cd4.msigdb.down$Dir <- "Down"
+
+cd4.msigdb <- do.call(rbind.data.frame, list(cd4.msigdb.up, cd4.msigdb.down))
+cd4.msigdb$logP <- -log10(cd4.msigdb$P.value)
+cd4.msigdb$logP[cd4.msigdb$Dir %in% c("Down")] <- -1 * cd4.msigdb$logP[cd4.msigdb$Dir %in% c("Down")]
+
+ggplot(cd4.msigdb[cd4.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.tfppi.up <- cd4.cm.enriched.up[["Transcription_Factor_PPIs"]]
+cd4.tfppi.up$Dir <- "Up"
+
+cd4.tfppi.down <- cd4.cm.enriched.down[["Transcription_Factor_PPIs"]]
+cd4.tfppi.down$Dir <- "Down"
+
+cd4.tfppi <- do.call(rbind.data.frame, list(cd4.tfppi.up, cd4.tfppi.down))
+cd4.tfppi$logP <- -log10(cd4.tfppi$P.value)
+cd4.tfppi$logP[cd4.tfppi$Dir %in% c("Down")] <- -1 * cd4.tfppi$logP[cd4.tfppi$Dir %in% c("Down")]
+
+ggplot(cd4.tfppi[cd4.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+## CD4.Naive
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd4.naive.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Naive"), ]$X
+cd4.naive.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Naive"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Naive"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd4.naive.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Naive-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbat=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd4.naive.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Naive") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd4.naive.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Naive") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.naive.msigdb.up <- cd4.naive.enriched.up[["MSigDB_Hallmark_2020"]]
+cd4.naive.msigdb.up$Dir <- "Up"
+
+cd4.naive.msigdb.down <- cd4.naive.enriched.down[["MSigDB_Hallmark_2020"]]
+cd4.naive.msigdb.down$Dir <- "Down"
+
+cd4.naive.msigdb <- do.call(rbind.data.frame, list(cd4.naive.msigdb.up, cd4.naive.msigdb.down))
+cd4.naive.msigdb$logP <- -log10(cd4.naive.msigdb$P.value)
+cd4.naive.msigdb$logP[cd4.naive.msigdb$Dir %in% c("Down")] <- -1 * cd4.naive.msigdb$logP[cd4.naive.msigdb$Dir %in% c("Down")]
+
+ggplot(cd4.naive.msigdb[cd4.naive.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd4.naive.tfppi.up <- cd4.naive.enriched.up[["Transcription_Factor_PPIs"]]
+cd4.naive.tfppi.up$Dir <- "Up"
+
+cd4.naive.tfppi.down <- cd4.naive.enriched.down[["Transcription_Factor_PPIs"]]
+cd4.naive.tfppi.down$Dir <- "Down"
+
+cd4.naive.tfppi <- do.call(rbind.data.frame, list(cd4.naive.tfppi.up, cd4.naive.tfppi.down))
+cd4.naive.tfppi$logP <- -log10(cd4.naive.tfppi$P.value)
+cd4.naive.tfppi$logP[cd4.naive.tfppi$Dir %in% c("Down")] <- -1 * cd4.naive.tfppi$logP[cd4.naive.tfppi$Dir %in% c("Down")]
+
+ggplot(cd4.naive.tfppi[cd4.naive.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD8.Naive
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd8.naive.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.Naive"), ]$X
+cd8.naive.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.Naive"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.Naive"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd8.naive.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.Naive-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbat=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd8.naive.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.Naive") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd8.naive.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.Naive") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.naive.msigdb.up <- cd8.naive.enriched.up[["MSigDB_Hallmark_2020"]]
+cd8.naive.msigdb.up$Dir <- "Up"
+
+cd8.naive.msigdb.down <- cd8.naive.enriched.down[["MSigDB_Hallmark_2020"]]
+cd8.naive.msigdb.down$Dir <- "Down"
+
+cd8.naive.msigdb <- do.call(rbind.data.frame, list(cd8.naive.msigdb.up, cd8.naive.msigdb.down))
+cd8.naive.msigdb$logP <- -log10(cd8.naive.msigdb$P.value)
+cd8.naive.msigdb$logP[cd8.naive.msigdb$Dir %in% c("Down")] <- -1 * cd8.naive.msigdb$logP[cd8.naive.msigdb$Dir %in% c("Down")]
+
+ggplot(cd8.naive.msigdb[cd8.naive.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.naive.tfppi.up <- cd8.naive.enriched.up[["Transcription_Factor_PPIs"]]
+cd8.naive.tfppi.up$Dir <- "Up"
+
+cd8.naive.tfppi.down <- cd8.naive.enriched.down[["Transcription_Factor_PPIs"]]
+cd8.naive.tfppi.down$Dir <- "Down"
+
+cd8.naive.tfppi <- do.call(rbind.data.frame, list(cd8.naive.tfppi.up, cd8.naive.tfppi.down))
+cd8.naive.tfppi$logP <- -log10(cd8.naive.tfppi$P.value)
+cd8.naive.tfppi$logP[cd8.naive.tfppi$Dir %in% c("Down")] <- -1 * cd8.naive.tfppi$logP[cd8.naive.tfppi$Dir %in% c("Down")]
+
+ggplot(cd8.naive.tfppi[cd8.naive.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD8.EM
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd8.em.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.EM"), ]$X
+cd8.em.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.EM"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.EM"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd8.em.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.CEMquadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd8.em.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.EM") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd8.em.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.EM") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+
+cd8.em.msigdb.up <- cd8.em.enriched.up[["MSigDB_Hallmark_2020"]]
+if(!is.null(cd8.em.msigdb.up)){
+    cd8.em.msigdb.up$Dir <- "Up"
+    
+    cd8.em.msigdb.down <- cd8.em.enriched.down[["MSigDB_Hallmark_2020"]]
+    cd8.em.msigdb.down$Dir <- "Down"
+    
+    cd8.em.msigdb <- do.call(rbind.data.frame, list(cd8.em.msigdb.up, cd8.em.msigdb.down))
+} else{
+    cd8.em.msigdb.down <- cd8.em.enriched.down[["MSigDB_Hallmark_2020"]]
+    cd8.em.msigdb.down$Dir <- "Down"
+    
+    cd8.em.msigdb <- do.call(rbind.data.frame, list(cd8.em.msigdb.up, cd8.em.msigdb.down))
+}
+cd8.em.msigdb$logP <- -log10(cd8.em.msigdb$P.value)
+cd8.em.msigdb$logP[cd8.em.msigdb$Dir %in% c("Down")] <- -1 * cd8.em.msigdb$logP[cd8.em.msigdb$Dir %in% c("Down")]
+
+ggplot(cd8.em.msigdb[cd8.em.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.em.tfppi.up <- cd8.em.enriched.up[["Transcription_Factor_PPIs"]]
+if(!is.null(cd8.em.tfppi.up)){
+    cd8.em.tfppi.up$Dir <- "Up"
+    
+    cd8.em.tfppi.down <- cd8.em.enriched.down[["Transcription_Factor_PPIs"]]
+    
+    cd8.em.tfppi.down$Dir <- "Down"
+    
+    cd8.em.tfppi <- do.call(rbind.data.frame, list(cd8.em.tfppi.up, cd8.em.tfppi.down))
+} else{
+    cd8.em.tfppi.down <- cd8.em.enriched.down[["Transcription_Factor_PPIs"]]
+    cd8.em.tfppi.down$Dir <- "Down"
+    
+    cd8.em.tfppi <- do.call(rbind.data.frame, list(cd8.em.tfppi.down))
+}
+cd8.em.tfppi$logP <- -log10(cd8.em.tfppi$P.value)
+cd8.em.tfppi$logP[cd8.em.tfppi$Dir %in% c("Down")] <- -1 * cd8.em.tfppi$logP[cd8.em.tfppi$Dir %in% c("Down")]
+
+ggplot(cd8.em.tfppi[cd8.em.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD8.TE
+
+```{r, fig.height=3.95, fig.width=4.95}
+cd8.te.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.TE"), ]$X
+cd8.te.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.TE"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.TE"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=cd8.te.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.TE-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+cd8.te.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.TE") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+cd8.te.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.TE") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.te.msigdb.up <- cd8.te.enriched.up[["MSigDB_Hallmark_2020"]]
+cd8.te.msigdb.up$Dir <- "Up"
+
+cd8.te.msigdb.down <- cd8.te.enriched.down[["MSigDB_Hallmark_2020"]]
+if(nrow(cd8.te.msigdb.down) > 0){
+    cd8.te.msigdb.down$Dir <- "Down"
+}
+
+cd8.te.msigdb <- do.call(rbind.data.frame, list(cd8.te.msigdb.up, cd8.te.msigdb.down))
+cd8.te.msigdb$logP <- -log10(cd8.te.msigdb$P.value)
+cd8.te.msigdb$logP[cd8.te.msigdb$Dir %in% c("Down")] <- -1 * cd8.te.msigdb$logP[cd8.te.msigdb$Dir %in% c("Down")]
+
+ggplot(cd8.te.msigdb[cd8.te.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+cd8.te.tfppi.up <- cd8.te.enriched.up[["Transcription_Factor_PPIs"]]
+if(nrow(cd8.te.tfppi.up) > 0){
+    cd8.te.tfppi.up$Dir <- "Up"
+}
+
+cd8.te.tfppi.down <- cd8.te.enriched.down[["Transcription_Factor_PPIs"]]
+if(nrow(cd8.te.tfppi.down) > 0){
+    cd8.te.tfppi.down$Dir <- "Down"
+}
+
+cd8.te.tfppi <- do.call(rbind.data.frame, list(cd8.te.tfppi.up, cd8.te.tfppi.down))
+cd8.te.tfppi$logP <- -log10(cd8.te.tfppi$P.value)
+cd8.te.tfppi$logP[cd8.te.tfppi$Dir %in% c("Down")] <- -1 * cd8.te.tfppi$logP[cd8.te.tfppi$Dir %in% c("Down")]
+
+ggplot(cd8.te.tfppi[cd8.te.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## CD4.Tfh
+
+```{r, fig.height=3.95, fig.width=4.95}
+tfh.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ]$X
+tfh.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=tfh.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Tfh-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+tfh.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Tfh") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+tfh.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Tfh") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+tfh.msigdb.up <- tfh.enriched.up[["MSigDB_Hallmark_2020"]]
+if(!is.null(tfh.msigdb.up)){
+tfh.msigdb.up$Dir <- "Up"
+} 
+
+tfh.msigdb.down <- tfh.enriched.down[["MSigDB_Hallmark_2020"]]
+if(!is.null(tfh.msigdb.down)){
+    tfh.msigdb.down$Dir <- "Down"
+}
+
+if(!is.null(tfh.msigdb.down) & !is.null(tfh.msigdb.up)){
+    tfh.msigdb <- do.call(rbind.data.frame, list(tfh.msigdb.up, tfh.msigdb.down))
+    if(nrow(tfh.msigdb) > 0){
+        tfh.msigdb$logP <- -log10(tfh.msigdb$P.value)
+        tfh.msigdb$logP[tfh.msigdb$Dir %in% c("Down")] <- -1 * tfh.msigdb$logP[tfh.msigdb$Dir %in% c("Down")]
+        
+        ggplot(tfh.msigdb[tfh.msigdb$P.value < 0.01, ],
+               aes(x=reorder(Term, logP), y=logP)) +
+            geom_hline(yintercept=0, lty=2, colour='grey80') +
+            geom_point() +
+            coord_flip() +
+            labs(x="Pathway", y="Odds Rato") +
+            theme_cowplot()
+    }
+}
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+tfh.tfppi.up <- tfh.enriched.up[["Transcription_Factor_PPIs"]]
+if(!is.null(tfh.tfppi.up)){
+    tfh.tfppi.up$Dir <- "Up"
+}
+
+tfh.tfppi.down <- tfh.enriched.down[["Transcription_Factor_PPIs"]]
+if(!is.null(tfh.tfppi.down)){
+    tfh.tfppi.down$Dir <- "Down"
+}
+
+tfh.tfppi <- do.call(rbind.data.frame, list(tfh.tfppi.up, tfh.tfppi.down))
+if(nrow(tfh.tfppi) > 0){
+    tfh.tfppi$logP <- -log10(tfh.tfppi$P.value)
+    tfh.tfppi$logP[tfh.tfppi$Dir %in% c("Down")] <- -1 * tfh.tfppi$logP[tfh.tfppi$Dir %in% c("Down")]
+    
+    ggplot(tfh.tfppi[tfh.tfppi$P.value < 0.01, ],
+           aes(x=reorder(Term, logP), y=logP)) +
+        geom_hline(yintercept=0, lty=2, colour='grey80') +
+        geom_point() +
+        coord_flip() +
+        labs(x="Pathway", y="Odds Rato") +
+        theme_cowplot()
+}
+```
+
+
+
+## gdT
+
+```{r, fig.height=3.95, fig.width=4.95}
+gdt.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("gdT"), ]$X
+gdt.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("gdT"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("gdT"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=gdt.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/gdT-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+gdt.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("gdT") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+gdt.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("gdT") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+gdt.msigdb.up <- gdt.enriched.up[["MSigDB_Hallmark_2020"]]
+gdt.msigdb.up$Dir <- "Up"
+
+gdt.msigdb.down <- gdt.enriched.down[["MSigDB_Hallmark_2020"]]
+gdt.msigdb.down$Dir <- "Down"
+
+gdt.msigdb <- do.call(rbind.data.frame, list(gdt.msigdb.up, gdt.msigdb.down))
+gdt.msigdb$logP <- -log10(gdt.msigdb$P.value)
+gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")] <- -1 * gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")]
+
+ggplot(gdt.msigdb[gdt.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+gdt.tfppi.up <- gdt.enriched.up[["Transcription_Factor_PPIs"]]
+gdt.tfppi.up$Dir <- "Up"
+
+gdt.tfppi.down <- gdt.enriched.down[["Transcription_Factor_PPIs"]]
+gdt.tfppi.down$Dir <- "Down"
+
+gdt.tfppi <- do.call(rbind.data.frame, list(gdt.tfppi.up, gdt.tfppi.down))
+gdt.tfppi$logP <- -log10(gdt.tfppi$P.value)
+gdt.tfppi$logP[gdt.tfppi$Dir %in% c("Down")] <- -1 * gdt.tfppi$logP[gdt.tfppi$Dir %in% c("Down")]
+
+ggplot(gdt.tfppi[gdt.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+
+## MAIT
+
+```{r, fig.height=3.95, fig.width=4.95}
+mait.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("MAIT"), ]$X
+mait.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("MAIT"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("MAIT"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=mait.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/MAIT-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+mait.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("MAIT") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+mait.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("MAIT") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+mait.msigdb.up <- mait.enriched.up[["MSigDB_Hallmark_2020"]]
+mait.msigdb.up$Dir <- "Up"
+
+mait.msigdb.down <- mait.enriched.down[["MSigDB_Hallmark_2020"]]
+mait.msigdb.down$Dir <- "Down"
+
+mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.up, mait.msigdb.down))
+mait.msigdb$logP <- -log10(mait.msigdb$P.value)
+mait.msigdb$logP[mait.msigdb$Dir %in% c("Down")] <- -1 * mait.msigdb$logP[mait.msigdb$Dir %in% c("Down")]
+
+ggplot(mait.msigdb[mait.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+mait.tfppi.up <- mait.enriched.up[["Transcription_Factor_PPIs"]]
+mait.tfppi.up$Dir <- "Up"
+
+mait.tfppi.down <- mait.enriched.down[["Transcription_Factor_PPIs"]]
+mait.tfppi.down$Dir <- "Down"
+
+mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.up, mait.tfppi.down))
+mait.tfppi$logP <- -log10(mait.tfppi$P.value)
+mait.tfppi$logP[mait.tfppi$Dir %in% c("Down")] <- -1 * mait.tfppi$logP[mait.tfppi$Dir %in% c("Down")]
+
+ggplot(mait.tfppi[mait.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+## Treg
+
+```{r, fig.height=3.95, fig.width=4.95}
+treg.labels <- quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("Treg"), ]$X
+treg.labels[quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("Treg"), ]$FDR > 1e-3] <- ""
+
+ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("Treg"), ],
+       aes(x=logFC, y=-log10(FDR))) +
+    geom_point() +
+    theme_cowplot() +
+    geom_text_repel(aes(label=treg.labels)) +
+    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Treg-quadratic_volcano.pdf",
+           height=3.95, width=4.95, useDingbats=FALSE) +
+    NULL
+```
+
+What are the enriched pathways amongst these genes?
+
+```{r}
+treg.enriched.up <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("Treg") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC > 0, ]$X,
+                              enrich.dbs)
+
+treg.enriched.down <- enrichr(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("Treg") &
+                                                quadratic.dge.df$FDR < 0.01 &
+                                                quadratic.dge.df$logFC < 0, ]$X,
+                              enrich.dbs)
+```
+
+
+## MSigDB 2020 enrichments
+
+```{r, fig.height=4.15, fig.width=4.15}
+treg.msigdb.up <- treg.enriched.up[["MSigDB_Hallmark_2020"]]
+treg.msigdb.up$Dir <- "Up"
+
+treg.msigdb.down <- treg.enriched.down[["MSigDB_Hallmark_2020"]]
+treg.msigdb.down$Dir <- "Down"
+
+treg.msigdb <- do.call(rbind.data.frame, list(treg.msigdb.up, treg.msigdb.down))
+treg.msigdb$logP <- -log10(treg.msigdb$P.value)
+treg.msigdb$logP[treg.msigdb$Dir %in% c("Down")] <- -1 * treg.msigdb$logP[treg.msigdb$Dir %in% c("Down")]
+
+ggplot(treg.msigdb[treg.msigdb$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+```{r, fig.height=4.15, fig.width=4.15}
+treg.tfppi.up <- treg.enriched.up[["Transcription_Factor_PPIs"]]
+treg.tfppi.up$Dir <- "Up"
+
+treg.tfppi.down <- treg.enriched.down[["Transcription_Factor_PPIs"]]
+treg.tfppi.down$Dir <- "Down"
+
+treg.tfppi <- do.call(rbind.data.frame, list(treg.tfppi.up, treg.tfppi.down))
+treg.tfppi$logP <- -log10(treg.tfppi$P.value)
+treg.tfppi$logP[treg.tfppi$Dir %in% c("Down")] <- -1 * treg.tfppi$logP[treg.tfppi$Dir %in% c("Down")]
+
+ggplot(treg.tfppi[treg.tfppi$P.value < 0.01, ],
+       aes(x=reorder(Term, logP), y=logP)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_point() +
+    coord_flip() +
+    labs(x="Pathway", y="Odds Rato") +
+    theme_cowplot()
+```
+
+
+
+
