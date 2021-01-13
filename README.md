@@ -20,19 +20,20 @@ Data is available under `COVID-19 PBMC Ncl-Cambridge-UCL`. Interactive view avai
 ## Research Groups
 <a href="https://haniffalab.com" rel="Haniffa Lab"><img src="https://avatars0.githubusercontent.com/u/44367631?s=200&v=4" height="100"></a>
 
-[Haniffa Lab github](https://github.com/haniffalab)
+[Haniffa Lab github](https://github.com/haniffalab)[![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/haniffalab.svg?style=social&label=Follow%20%40haniffalab)](https://twitter.com/haniffalab)
 
 <a href="https://www.teichlab.org" rel="Teichmann Lab"><img src="http://static1.squarespace.com/static/56d85b53c6fc08fe12541664/t/580e213129687fbc612f9a5c/1610115725446/?format=1500w" height="100"></a>
 
-[Teichmann Lab github](https://github.com/Teichlab)
+[Teichmann Lab github](https://github.com/Teichlab)[![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/teichlab.svg?style=social&label=Follow%20%40teichlab)](https://twitter.com/teichlab)
 
 <a href="https://github.com/MarioniLab" rel="Marioni Lab"><img src="https://avatars3.githubusercontent.com/u/16623186?s=200&v=4" height="100"></a>
 
-[Marioni Lab github](https://github.com/MarioniLab)
+[Marioni Lab github](https://github.com/MarioniLab)[![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/marionilab.svg?style=social&label=Follow%20%40marionilab)](https://twitter.com/marionilab)
 
 [Göttgens Lab](http://www.haem.cam.ac.uk/staff/senior-staff/professor-bertie-gottgens/)
 
-[Clatworthy Lab](https://www.med.cam.ac.uk/clatworthy/)
+[Clatworthy Lab](https://www.med.cam.ac.uk/clatworthy/)[![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/clatworthylab.svg?style=social&label=Follow%20%40clatworthylab)](https://twitter.com/clatworthylab)
+
 
 ## BCR analysis package
 <a href="https://sc-dandelion.readthedocs.io/" rel="dandelion"><img src="https://github.com/zktuong/dandelion/blob/master/notebooks/img/dandelion_logo.png" height="100"></a>
@@ -42,8 +43,8 @@ Data is available under `COVID-19 PBMC Ncl-Cambridge-UCL`. Interactive view avai
 ## Contacts
 For queries, please contact one of the following:
 
-https://github.com/MikeDMorgan
+https://github.com/MikeDMorgan [![Twitter URL](http://i.imgur.com/tXSoThF.png)](https://twitter.com/MDMorgan_cam)
 
-https://github.com/greynolds81
+https://github.com/greynolds81 [![Twitter URL](http://i.imgur.com/tXSoThF.png)](https://twitter.com/gary_d_reynolds)
 
-https://github.com/zktuong
+https://github.com/zktuong [![Twitter URL](http://i.imgur.com/tXSoThF.png)](https://twitter.com/KelvinTuong)
