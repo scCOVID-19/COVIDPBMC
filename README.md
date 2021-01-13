@@ -41,8 +41,9 @@ Data is available under `COVID-19 PBMC Ncl-Cambridge-UCL`. Interactive view avai
 
 ## Contacts
 For queries, please contact one of the following:
-https://github.com/greynolds81
+
 https://github.com/MikeDMorgan
+
+https://github.com/greynolds81
+
 https://github.com/zktuong
-
-
