@@ -1,0 +1,331 @@
+---
+title: "Cydar on Covid ADT data"
+author: "Karsten Bach"
+date: '`r Sys.Date()`'
+output:
+  html_notebook:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    highlight: tango
+    code_folding: hide
+---
+***
+
+# Load Data
+
+Assigning cells into hyperspheres was done already as this is time consuming.
+The "expression values" are the reconstructed values after fastMNN on the denoised counts.
+
+```{r, message=FALSE,warning=FALSE}
+
+# ---- Parsing ----
+opt <- list()
+opt$cd <- "../data/HyperSpheres_8.RDS"
+
+# ---- Load Data ----
+library(knitr)
+library(scran)
+library(scater)
+library(cydar)
+library(randomForest)
+library(ggplot2)
+library(cowplot)
+library(ggplot2)
+library(viridis)
+theme_set(theme_cowplot())
+
+# Read in clinical meta data
+meta <- read.csv("../data/meta/Metadata FINAL 10122020v2.csv",
+		 stringsAsFactor=FALSE)[,-1]
+
+cd <- readRDS(opt$cd)
+
+#Setting up edgeR object
+library(edgeR)
+y <- DGEList(assay(cd), lib.size=cd$totals)
+
+# Remove sample that is "non_covid"
+meta <- meta[meta$Collection_Day=="D0" & meta$Status!="LPS" & meta$sample_id != "BGCV02_CV0902",]
+rownames(meta) <- meta$patient_id
+meta <- meta[rownames(y$samples),]
+
+y$samples$Age <- as.numeric(meta$Age)
+y$samples$Sex <- as.character(meta$Sex)
+y$samples$Severity <- factor(meta$Status_on_day_collection_summary,
+			     levels=c("Healthy","Asymptomatic","Mild",
+				      "Moderate","Severe","Critical"))
+y$samples$Center <- meta$Site
+
+# Removing lowly occupied spheres
+keep <- filterByExpr(y,group=y$samples$Severity,min.count=5)
+cd <- cd[keep,]
+y <- y[keep,]
+
+```
+
+# The Samples
+- Overview over the samples that I included in the analysis.
+```{r, message=FALSE,warning=FALSE}
+kable(table(y$samples$Center,y$samples$Severity))
+kable(table(y$samples$Severity,y$samples$Sex))
+ggplot(y$samples, aes(x=Severity, y=Age, fill=Center)) +
+    geom_boxplot() +
+    geom_jitter() +
+    theme(axis.text.x=element_text(angle=60,hjust=1)) +
+    scale_fill_manual(values=c("blue","dodgerblue","salmon"))
+```
+
+# The hyperspheres
+The cells were then grouped into `r nrow(cd)` hyperspheres containing a median of `r median(rowSums(y$counts))` cells. Note that a cell can be represented in multiple hyperspheres.
+We can take mean intensities for all of the hyperspheres and compute a UMAP on them to get an overview of the data.
+```{r, message=FALSE,warning=FALSE,fig.width=15,fig.height=10}
+# Plot a UMAP with the hyperspheres
+coords <- intensities(cd)
+colnames(coords) <- gsub("AB_","",colnames(coords))
+#colnames(coords) <- gsub("-",".",colnames(coords))
+#colnames(coords) <- gsub("/",".",colnames(coords))
+
+library(irlba)
+set.seed(42)
+pcs <- prcomp_irlba(coords,n=20)
+library(umap)
+ump <- umap(pcs$x,random_state=42,
+	    n_neighbors=20,
+	    init='spectral',
+	    n_components=2,
+	    min_dist=0.1,
+	    mehtod='naive')
+
+
+fplot <- data.frame("UMAP1"=ump$layout[,1],
+		    "UMAP2"=ump$layout[,2])
+
+for (gn in colnames(coords)) {
+    fplot[,gn] <- coords[,gn]
+}
+
+fplot$Size <- rowMeans(cpm(y,log=TRUE))
+
+p1 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD45)) +
+    geom_point() +
+    scale_color_viridis()
+p2 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD3)) +
+    geom_point() +
+    scale_color_viridis()
+p3 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD14)) +
+    geom_point() +
+    scale_color_viridis()
+p4 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD8)) +
+    geom_point() +
+    scale_color_viridis()
+p5 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=ITGAX)) +
+    geom_point() +
+    scale_color_viridis()
+library(cowplot)
+plot_grid(p1,p2,p3,p4,p5)
+
+p1 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=ITGAM)) +
+    geom_point() +
+    scale_color_viridis()
+p2 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=ITGAX)) +
+    geom_point() +
+    scale_color_viridis()
+p3 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD71)) +
+    geom_point() +
+    scale_color_viridis()
+p4 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD123)) +
+    geom_point() +
+    scale_color_viridis()
+p5 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD19)) +
+    geom_point() +
+    scale_color_viridis()
+p6 <- ggplot(fplot, aes(x=UMAP1, y=UMAP2, color=CD1C)) +
+    geom_point() +
+    scale_color_viridis()
+library(cowplot)
+plot_grid(p1,p2,p3,p4,p5,p6)
+```
+
+# Setting up the model for 1-vs-1 comparison
+- Setting span to 1 because low number of points
+```{r, message=FALSE,warning=FALSE}
+desgn <- model.matrix(~ 0 + Sex + Age + Center + Severity, data=y$samples)
+y <- estimateDisp(y, desgn,span=1)
+fit <- glmQLFit(y, desgn, robust=TRUE)
+head(desgn)
+```
+
+# Estimating LFCs versus healthy
+```{r, message=FALSE,warning=FALSE}
+# A
+resA <- glmQLFTest(fit, coef=ncol(desgn)-4)
+resA$table$qvals <- spatialFDR(intensities(cd), resA$table$PValue)
+fplot$LFCA <- resA$table$logFC
+fplot$LFCA[resA$table$qvals>0.05] <- 0
+
+# B
+resB <- glmQLFTest(fit, coef=ncol(desgn)-3)
+resB$table$qvals <- spatialFDR(intensities(cd), resB$table$PValue)
+fplot$LFCB <- resB$table$logFC
+fplot$LFCB[resB$table$qvals>0.05] <- 0
+
+# C
+resC <- glmQLFTest(fit, coef=ncol(desgn)-2)
+resC$table$qvals <- spatialFDR(intensities(cd), resC$table$PValue)
+fplot$LFCC <- resC$table$logFC
+fplot$LFCC[resC$table$qvals>0.05] <- 0
+
+# D
+resD <- glmQLFTest(fit, coef=ncol(desgn)-1)
+resD$table$qvals <- spatialFDR(intensities(cd), resD$table$PValue)
+fplot$LFCD <- resD$table$logFC
+fplot$LFCD[resD$table$qvals>0.05] <- 0
+
+# E
+resE <- glmQLFTest(fit, coef=ncol(desgn))
+resE$table$qvals <- spatialFDR(intensities(cd), resE$table$PValue)
+fplot$LFCE <- resE$table$logFC
+fplot$LFCE[resE$table$qvals>0.05] <- 0
+```
+
+# Setting up the model for linear/quadratic changes
+```{r, message=FALSE,warning=FALSE}
+y$samples$Severity <- ordered(y$samples$Severity)
+desgn <- model.matrix(~ 0 + Sex + Center + Age + Severity, data=y$samples)
+y <- estimateDisp(y, desgn,span=1)
+fit <- glmQLFit(y, desgn, robust=TRUE)
+head(desgn)
+```
+
+
+## Defining Significance
+- Setting a 1% spatial FDR
+```{r, message=FALSE,warning=FALSE}
+# Lin
+resLin <- glmQLFTest(fit, coef=ncol(desgn)-4)
+resLin$table$qvals <- spatialFDR(intensities(cd), resLin$table$PValue)
+fplot$LFCLin <- resLin$table$logFC
+fplot$LFCLin[resLin$table$qvals>0.05] <- 0
+# B
+resQuad <- glmQLFTest(fit, coef=ncol(desgn)-3)
+resQuad$table$qvals <- spatialFDR(intensities(cd), resQuad$table$PValue)
+fplot$LFCQuad <- resQuad$table$logFC
+fplot$LFCQuad[resQuad$table$qvals>0.05] <- 0
+```
+
+```{r, message=FALSE,warning=FALSE}
+library(dplyr)
+ggplot(arrange(fplot,abs(LFCLin)), aes(x=UMAP1, y=UMAP2, fill=LFCLin)) +
+    geom_point(pch=21,color="grey30",size=4) +
+    scale_fill_gradient2(low="blue", mid="white", high="red",name="LFC") +
+    theme(axis.text=element_text(size=14),
+	  strip.text.x = element_text(size=14, face="bold") ,
+	  strip.text.y = element_text(size=14, face="bold"),
+	  strip.background = element_blank(),
+	  axis.text.x=element_blank(),
+	  axis.text.y=element_blank(),
+	  axis.ticks.y=element_blank(),
+	  axis.ticks.x=element_blank()) 
+ggsave("../figures/LinearChanges.pdf",useDingbats=FALSE)
+```
+
+## Individual plots
+```{r, message=FALSE,warning=FALSE,fig.width=16, fig.height=3}
+library(dplyr)
+p1 <- ggplot(arrange(fplot,abs(LFCA)), aes(x=UMAP1, y=UMAP2, fill=LFCA)) +
+    geom_point(pch=21,color="grey30",size=2) +
+    scale_fill_gradient2(low="blue", mid="white", high="red",name="LFC") +
+    theme(axis.text=element_text(size=14),
+	  strip.text.x = element_text(size=14, face="bold") ,
+	  strip.text.y = element_text(size=14, face="bold"),
+	  strip.background = element_blank(),
+	  axis.text.x=element_blank(),
+	  axis.text.y=element_blank(),
+	  axis.ticks.y=element_blank(),
+	  axis.ticks.x=element_blank()) +
+    ggtitle("Asymptomatic")
+p2 <- ggplot(arrange(fplot,abs(LFCB)), aes(x=UMAP1, y=UMAP2, fill=LFCB)) +
+    geom_point(pch=21,color="grey30",size=2) +
+    scale_fill_gradient2(low="blue", mid="white", high="red",name="LFC") +
+    theme(axis.text=element_text(size=14),
+	  strip.text.x = element_text(size=14, face="bold") ,
+	  strip.text.y = element_text(size=14, face="bold"),
+	  strip.background = element_blank(),
+	  axis.text.x=element_blank(),
+	  axis.text.y=element_blank(),
+	  axis.ticks.y=element_blank(),
+	  axis.ticks.x=element_blank()) +
+    ggtitle("Mild")
+p3 <- ggplot(arrange(fplot,abs(LFCC)), aes(x=UMAP1, y=UMAP2, fill=LFCC)) +
+    geom_point(pch=21,color="grey30",size=2) +
+    scale_fill_gradient2(low="blue", mid="white", high="red",name="LFC") +
+    theme(axis.text=element_text(size=14),
+	  strip.text.x = element_text(size=14, face="bold") ,
+	  strip.text.y = element_text(size=14, face="bold"),
+	  strip.background = element_blank(),
+	  axis.text.x=element_blank(),
+	  axis.text.y=element_blank(),
+	  axis.ticks.y=element_blank(),
+	  axis.ticks.x=element_blank()) +
+    ggtitle("Moderate")
+p4 <- ggplot(arrange(fplot,abs(LFCD)), aes(x=UMAP1, y=UMAP2, fill=LFCD)) +
+    geom_point(pch=21,color="grey30",size=2) +
+    scale_fill_gradient2(low="blue", mid="white", high="red",name="LFC") +
+    theme(axis.text=element_text(size=14),
+	  strip.text.x = element_text(size=14, face="bold") ,
+	  strip.text.y = element_text(size=14, face="bold"),
+	  strip.background = element_blank(),
+	  axis.text.x=element_blank(),
+	  axis.text.y=element_blank(),
+	  axis.ticks.y=element_blank(),
+	  axis.ticks.x=element_blank()) +
+    ggtitle("Severe")
+p5 <- ggplot(arrange(fplot,abs(LFCE)), aes(x=UMAP1, y=UMAP2, fill=LFCE)) +
+    geom_point(pch=21,color="grey30",size=2) +
+    scale_fill_gradient2(low="blue", mid="white", high="red",name="LFC") +
+    theme(axis.text=element_text(size=14),
+	  strip.text.x = element_text(size=14, face="bold") ,
+	  strip.text.y = element_text(size=14, face="bold"),
+	  strip.background = element_blank(),
+	  axis.text.x=element_blank(),
+	  axis.text.y=element_blank(),
+	  axis.ticks.y=element_blank(),
+	  axis.ticks.x=element_blank()) +
+    ggtitle("Critical")
+plot_grid(p1,p2,p3,p4,p5,nrow=1)
+ggsave("../figures/LFC_v_Healthy_By_Stage.pdf",useDingbats=FALSE,width=16,height=3)
+```
+
+# Heatmaps
+
+## For linear changes
+```{r, message=FALSE,warning=FALSE,fig.height=12,fig.width=9}
+library(circlize)
+library(ComplexHeatmap)
+mat <- intensities(cd)
+mat <- scale(t(mat))
+#mat <- t(mat)-rowMeans(t(mat))
+rownames(mat) <- gsub("AB_","",rownames(mat))
+
+#show some columns 
+col_fun <- colorRamp2(c(-7, 0, 4), c("blue", "grey80", "red"))
+cols <- which(fplot$LFCLin != 0)
+ha <- HeatmapAnnotation(LFC_Severity=fplot$LFCLin[cols],
+			col=list(LFC_Severity=col_fun
+				 )
+			)
+
+int <- which(rowMax(abs(mat))>1.3)
+#int <- c(which(rownames(mat)=="CD14"),int)
+mat[mat > 3] <- 3
+mat[mat < -3] <- -3
+pdf("../figures/Heatmap_LinearChanges.pdf",width=5,height=13)
+Heatmap(mat[int,cols],
+#	show_col_names=FALSE,
+	heatmap_legend_param = list(title="Scaled Intensity"),
+	row_names_gp=gpar(fontsize=7),
+	top_annotation=ha)
+dev.off()
+```
