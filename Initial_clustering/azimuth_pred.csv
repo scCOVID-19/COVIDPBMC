@@ -1,0 +1,1381 @@
+full_clustering,azimuth_pred,0
+CD4.CM,ASDC,0
+CD4.CM,B intermediate,0
+CD4.CM,B memory,0
+CD4.CM,B naive,0
+CD4.CM,CD14 Mono,0
+CD4.CM,CD16 Mono,0
+CD4.CM,CD4 CTL,34
+CD4.CM,CD4 Naive,1061
+CD4.CM,CD4 Proliferating,0
+CD4.CM,CD4 TCM,3313
+CD4.CM,CD4 TEM,82
+CD4.CM,CD8 Naive,65
+CD4.CM,CD8 Proliferating,0
+CD4.CM,CD8 TCM,52
+CD4.CM,CD8 TEM,138
+CD4.CM,Eryth,41
+CD4.CM,HSPC,0
+CD4.CM,ILC,5
+CD4.CM,MAIT,8
+CD4.CM,NK,16
+CD4.CM,NK Proliferating,0
+CD4.CM,NK_CD56bright,0
+CD4.CM,Plasmablast,0
+CD4.CM,Platelet,1
+CD4.CM,Treg,254
+CD4.CM,cDC1,0
+CD4.CM,cDC2,0
+CD4.CM,dnT,3
+CD4.CM,gdT,15
+CD4.CM,pDC,3
+CD4.EM,ASDC,0
+CD4.EM,B intermediate,0
+CD4.EM,B memory,0
+CD4.EM,B naive,0
+CD4.EM,CD14 Mono,0
+CD4.EM,CD16 Mono,0
+CD4.EM,CD4 CTL,0
+CD4.EM,CD4 Naive,7
+CD4.EM,CD4 Proliferating,15
+CD4.EM,CD4 TCM,234
+CD4.EM,CD4 TEM,4
+CD4.EM,CD8 Naive,0
+CD4.EM,CD8 Proliferating,0
+CD4.EM,CD8 TCM,6
+CD4.EM,CD8 TEM,1
+CD4.EM,Eryth,0
+CD4.EM,HSPC,0
+CD4.EM,ILC,1
+CD4.EM,MAIT,0
+CD4.EM,NK,0
+CD4.EM,NK Proliferating,2
+CD4.EM,NK_CD56bright,0
+CD4.EM,Plasmablast,0
+CD4.EM,Platelet,0
+CD4.EM,Treg,9
+CD4.EM,cDC1,0
+CD4.EM,cDC2,0
+CD4.EM,dnT,2
+CD4.EM,gdT,1
+CD4.EM,pDC,0
+CD4.IL22,ASDC,0
+CD4.IL22,B intermediate,0
+CD4.IL22,B memory,0
+CD4.IL22,B naive,0
+CD4.IL22,CD14 Mono,0
+CD4.IL22,CD16 Mono,0
+CD4.IL22,CD4 CTL,0
+CD4.IL22,CD4 Naive,17
+CD4.IL22,CD4 Proliferating,0
+CD4.IL22,CD4 TCM,1517
+CD4.IL22,CD4 TEM,73
+CD4.IL22,CD8 Naive,0
+CD4.IL22,CD8 Proliferating,0
+CD4.IL22,CD8 TCM,20
+CD4.IL22,CD8 TEM,2
+CD4.IL22,Eryth,0
+CD4.IL22,HSPC,0
+CD4.IL22,ILC,0
+CD4.IL22,MAIT,1
+CD4.IL22,NK,0
+CD4.IL22,NK Proliferating,0
+CD4.IL22,NK_CD56bright,0
+CD4.IL22,Plasmablast,0
+CD4.IL22,Platelet,0
+CD4.IL22,Treg,120
+CD4.IL22,cDC1,0
+CD4.IL22,cDC2,0
+CD4.IL22,dnT,1
+CD4.IL22,gdT,2
+CD4.IL22,pDC,0
+CD4.Naive,ASDC,0
+CD4.Naive,B intermediate,0
+CD4.Naive,B memory,0
+CD4.Naive,B naive,0
+CD4.Naive,CD14 Mono,0
+CD4.Naive,CD16 Mono,0
+CD4.Naive,CD4 CTL,1
+CD4.Naive,CD4 Naive,2956
+CD4.Naive,CD4 Proliferating,0
+CD4.Naive,CD4 TCM,2698
+CD4.Naive,CD4 TEM,8
+CD4.Naive,CD8 Naive,80
+CD4.Naive,CD8 Proliferating,0
+CD4.Naive,CD8 TCM,39
+CD4.Naive,CD8 TEM,10
+CD4.Naive,Eryth,0
+CD4.Naive,HSPC,3
+CD4.Naive,ILC,0
+CD4.Naive,MAIT,2
+CD4.Naive,NK,1
+CD4.Naive,NK Proliferating,0
+CD4.Naive,NK_CD56bright,0
+CD4.Naive,Plasmablast,0
+CD4.Naive,Platelet,1
+CD4.Naive,Treg,150
+CD4.Naive,cDC1,0
+CD4.Naive,cDC2,0
+CD4.Naive,dnT,7
+CD4.Naive,gdT,10
+CD4.Naive,pDC,0
+CD4.Prolif,ASDC,0
+CD4.Prolif,B intermediate,0
+CD4.Prolif,B memory,0
+CD4.Prolif,B naive,0
+CD4.Prolif,CD14 Mono,0
+CD4.Prolif,CD16 Mono,0
+CD4.Prolif,CD4 CTL,0
+CD4.Prolif,CD4 Naive,0
+CD4.Prolif,CD4 Proliferating,45
+CD4.Prolif,CD4 TCM,14
+CD4.Prolif,CD4 TEM,0
+CD4.Prolif,CD8 Naive,0
+CD4.Prolif,CD8 Proliferating,3
+CD4.Prolif,CD8 TCM,0
+CD4.Prolif,CD8 TEM,0
+CD4.Prolif,Eryth,0
+CD4.Prolif,HSPC,0
+CD4.Prolif,ILC,0
+CD4.Prolif,MAIT,0
+CD4.Prolif,NK,0
+CD4.Prolif,NK Proliferating,3
+CD4.Prolif,NK_CD56bright,0
+CD4.Prolif,Plasmablast,0
+CD4.Prolif,Platelet,0
+CD4.Prolif,Treg,0
+CD4.Prolif,cDC1,0
+CD4.Prolif,cDC2,0
+CD4.Prolif,dnT,0
+CD4.Prolif,gdT,0
+CD4.Prolif,pDC,0
+CD4.Tfh,ASDC,0
+CD4.Tfh,B intermediate,0
+CD4.Tfh,B memory,0
+CD4.Tfh,B naive,0
+CD4.Tfh,CD14 Mono,0
+CD4.Tfh,CD16 Mono,0
+CD4.Tfh,CD4 CTL,0
+CD4.Tfh,CD4 Naive,108
+CD4.Tfh,CD4 Proliferating,0
+CD4.Tfh,CD4 TCM,1209
+CD4.Tfh,CD4 TEM,11
+CD4.Tfh,CD8 Naive,2
+CD4.Tfh,CD8 Proliferating,0
+CD4.Tfh,CD8 TCM,1
+CD4.Tfh,CD8 TEM,4
+CD4.Tfh,Eryth,1
+CD4.Tfh,HSPC,0
+CD4.Tfh,ILC,3
+CD4.Tfh,MAIT,2
+CD4.Tfh,NK,0
+CD4.Tfh,NK Proliferating,0
+CD4.Tfh,NK_CD56bright,0
+CD4.Tfh,Plasmablast,0
+CD4.Tfh,Platelet,0
+CD4.Tfh,Treg,35
+CD4.Tfh,cDC1,0
+CD4.Tfh,cDC2,0
+CD4.Tfh,dnT,2
+CD4.Tfh,gdT,3
+CD4.Tfh,pDC,0
+CD4.Th1,ASDC,0
+CD4.Th1,B intermediate,0
+CD4.Th1,B memory,0
+CD4.Th1,B naive,0
+CD4.Th1,CD14 Mono,0
+CD4.Th1,CD16 Mono,0
+CD4.Th1,CD4 CTL,3
+CD4.Th1,CD4 Naive,2
+CD4.Th1,CD4 Proliferating,0
+CD4.Th1,CD4 TCM,35
+CD4.Th1,CD4 TEM,2
+CD4.Th1,CD8 Naive,0
+CD4.Th1,CD8 Proliferating,0
+CD4.Th1,CD8 TCM,0
+CD4.Th1,CD8 TEM,3
+CD4.Th1,Eryth,0
+CD4.Th1,HSPC,0
+CD4.Th1,ILC,0
+CD4.Th1,MAIT,0
+CD4.Th1,NK,0
+CD4.Th1,NK Proliferating,0
+CD4.Th1,NK_CD56bright,0
+CD4.Th1,Plasmablast,0
+CD4.Th1,Platelet,1
+CD4.Th1,Treg,1
+CD4.Th1,cDC1,0
+CD4.Th1,cDC2,0
+CD4.Th1,dnT,0
+CD4.Th1,gdT,1
+CD4.Th1,pDC,0
+CD4.Th17,ASDC,0
+CD4.Th17,B intermediate,0
+CD4.Th17,B memory,0
+CD4.Th17,B naive,0
+CD4.Th17,CD14 Mono,0
+CD4.Th17,CD16 Mono,0
+CD4.Th17,CD4 CTL,0
+CD4.Th17,CD4 Naive,0
+CD4.Th17,CD4 Proliferating,0
+CD4.Th17,CD4 TCM,0
+CD4.Th17,CD4 TEM,0
+CD4.Th17,CD8 Naive,0
+CD4.Th17,CD8 Proliferating,0
+CD4.Th17,CD8 TCM,0
+CD4.Th17,CD8 TEM,0
+CD4.Th17,Eryth,0
+CD4.Th17,HSPC,0
+CD4.Th17,ILC,0
+CD4.Th17,MAIT,0
+CD4.Th17,NK,0
+CD4.Th17,NK Proliferating,0
+CD4.Th17,NK_CD56bright,0
+CD4.Th17,Plasmablast,0
+CD4.Th17,Platelet,0
+CD4.Th17,Treg,0
+CD4.Th17,cDC1,0
+CD4.Th17,cDC2,0
+CD4.Th17,dnT,0
+CD4.Th17,gdT,0
+CD4.Th17,pDC,0
+CD4.Th2,ASDC,0
+CD4.Th2,B intermediate,0
+CD4.Th2,B memory,0
+CD4.Th2,B naive,0
+CD4.Th2,CD14 Mono,0
+CD4.Th2,CD16 Mono,0
+CD4.Th2,CD4 CTL,0
+CD4.Th2,CD4 Naive,1
+CD4.Th2,CD4 Proliferating,0
+CD4.Th2,CD4 TCM,6
+CD4.Th2,CD4 TEM,0
+CD4.Th2,CD8 Naive,0
+CD4.Th2,CD8 Proliferating,0
+CD4.Th2,CD8 TCM,0
+CD4.Th2,CD8 TEM,0
+CD4.Th2,Eryth,0
+CD4.Th2,HSPC,0
+CD4.Th2,ILC,0
+CD4.Th2,MAIT,0
+CD4.Th2,NK,0
+CD4.Th2,NK Proliferating,0
+CD4.Th2,NK_CD56bright,0
+CD4.Th2,Plasmablast,0
+CD4.Th2,Platelet,0
+CD4.Th2,Treg,0
+CD4.Th2,cDC1,0
+CD4.Th2,cDC2,0
+CD4.Th2,dnT,0
+CD4.Th2,gdT,0
+CD4.Th2,pDC,0
+CD8.EM,ASDC,0
+CD8.EM,B intermediate,0
+CD8.EM,B memory,0
+CD8.EM,B naive,0
+CD8.EM,CD14 Mono,0
+CD8.EM,CD16 Mono,0
+CD8.EM,CD4 CTL,48
+CD8.EM,CD4 Naive,3
+CD8.EM,CD4 Proliferating,0
+CD8.EM,CD4 TCM,71
+CD8.EM,CD4 TEM,112
+CD8.EM,CD8 Naive,13
+CD8.EM,CD8 Proliferating,1
+CD8.EM,CD8 TCM,237
+CD8.EM,CD8 TEM,1235
+CD8.EM,Eryth,0
+CD8.EM,HSPC,0
+CD8.EM,ILC,2
+CD8.EM,MAIT,31
+CD8.EM,NK,0
+CD8.EM,NK Proliferating,0
+CD8.EM,NK_CD56bright,1
+CD8.EM,Plasmablast,0
+CD8.EM,Platelet,1
+CD8.EM,Treg,0
+CD8.EM,cDC1,0
+CD8.EM,cDC2,0
+CD8.EM,dnT,8
+CD8.EM,gdT,6
+CD8.EM,pDC,0
+CD8.Naive,ASDC,0
+CD8.Naive,B intermediate,0
+CD8.Naive,B memory,0
+CD8.Naive,B naive,0
+CD8.Naive,CD14 Mono,1
+CD8.Naive,CD16 Mono,0
+CD8.Naive,CD4 CTL,0
+CD8.Naive,CD4 Naive,60
+CD8.Naive,CD4 Proliferating,0
+CD8.Naive,CD4 TCM,440
+CD8.Naive,CD4 TEM,9
+CD8.Naive,CD8 Naive,1625
+CD8.Naive,CD8 Proliferating,0
+CD8.Naive,CD8 TCM,783
+CD8.Naive,CD8 TEM,22
+CD8.Naive,Eryth,0
+CD8.Naive,HSPC,0
+CD8.Naive,ILC,0
+CD8.Naive,MAIT,0
+CD8.Naive,NK,0
+CD8.Naive,NK Proliferating,0
+CD8.Naive,NK_CD56bright,0
+CD8.Naive,Plasmablast,0
+CD8.Naive,Platelet,0
+CD8.Naive,Treg,9
+CD8.Naive,cDC1,0
+CD8.Naive,cDC2,0
+CD8.Naive,dnT,4
+CD8.Naive,gdT,9
+CD8.Naive,pDC,0
+CD8.Prolif,ASDC,0
+CD8.Prolif,B intermediate,0
+CD8.Prolif,B memory,0
+CD8.Prolif,B naive,0
+CD8.Prolif,CD14 Mono,0
+CD8.Prolif,CD16 Mono,0
+CD8.Prolif,CD4 CTL,2
+CD8.Prolif,CD4 Naive,1
+CD8.Prolif,CD4 Proliferating,5
+CD8.Prolif,CD4 TCM,6
+CD8.Prolif,CD4 TEM,0
+CD8.Prolif,CD8 Naive,16
+CD8.Prolif,CD8 Proliferating,34
+CD8.Prolif,CD8 TCM,0
+CD8.Prolif,CD8 TEM,31
+CD8.Prolif,Eryth,0
+CD8.Prolif,HSPC,0
+CD8.Prolif,ILC,0
+CD8.Prolif,MAIT,0
+CD8.Prolif,NK,2
+CD8.Prolif,NK Proliferating,38
+CD8.Prolif,NK_CD56bright,0
+CD8.Prolif,Plasmablast,0
+CD8.Prolif,Platelet,0
+CD8.Prolif,Treg,0
+CD8.Prolif,cDC1,0
+CD8.Prolif,cDC2,0
+CD8.Prolif,dnT,0
+CD8.Prolif,gdT,0
+CD8.Prolif,pDC,0
+CD8.TE,ASDC,0
+CD8.TE,B intermediate,0
+CD8.TE,B memory,0
+CD8.TE,B naive,0
+CD8.TE,CD14 Mono,1
+CD8.TE,CD16 Mono,0
+CD8.TE,CD4 CTL,911
+CD8.TE,CD4 Naive,0
+CD8.TE,CD4 Proliferating,0
+CD8.TE,CD4 TCM,90
+CD8.TE,CD4 TEM,6
+CD8.TE,CD8 Naive,25
+CD8.TE,CD8 Proliferating,1
+CD8.TE,CD8 TCM,13
+CD8.TE,CD8 TEM,4051
+CD8.TE,Eryth,0
+CD8.TE,HSPC,0
+CD8.TE,ILC,0
+CD8.TE,MAIT,4
+CD8.TE,NK,42
+CD8.TE,NK Proliferating,0
+CD8.TE,NK_CD56bright,0
+CD8.TE,Plasmablast,0
+CD8.TE,Platelet,0
+CD8.TE,Treg,1
+CD8.TE,cDC1,0
+CD8.TE,cDC2,0
+CD8.TE,dnT,1
+CD8.TE,gdT,21
+CD8.TE,pDC,0
+MAIT,ASDC,0
+MAIT,B intermediate,0
+MAIT,B memory,0
+MAIT,B naive,0
+MAIT,CD14 Mono,0
+MAIT,CD16 Mono,0
+MAIT,CD4 CTL,21
+MAIT,CD4 Naive,15
+MAIT,CD4 Proliferating,0
+MAIT,CD4 TCM,207
+MAIT,CD4 TEM,383
+MAIT,CD8 Naive,9
+MAIT,CD8 Proliferating,2
+MAIT,CD8 TCM,25
+MAIT,CD8 TEM,208
+MAIT,Eryth,0
+MAIT,HSPC,0
+MAIT,ILC,1
+MAIT,MAIT,345
+MAIT,NK,4
+MAIT,NK Proliferating,3
+MAIT,NK_CD56bright,0
+MAIT,Plasmablast,0
+MAIT,Platelet,0
+MAIT,Treg,2
+MAIT,cDC1,0
+MAIT,cDC2,0
+MAIT,dnT,19
+MAIT,gdT,1
+MAIT,pDC,0
+NKT,ASDC,0
+NKT,B intermediate,0
+NKT,B memory,0
+NKT,B naive,0
+NKT,CD14 Mono,0
+NKT,CD16 Mono,0
+NKT,CD4 CTL,13
+NKT,CD4 Naive,3
+NKT,CD4 Proliferating,0
+NKT,CD4 TCM,79
+NKT,CD4 TEM,81
+NKT,CD8 Naive,6
+NKT,CD8 Proliferating,0
+NKT,CD8 TCM,1
+NKT,CD8 TEM,294
+NKT,Eryth,0
+NKT,HSPC,0
+NKT,ILC,0
+NKT,MAIT,0
+NKT,NK,21
+NKT,NK Proliferating,0
+NKT,NK_CD56bright,0
+NKT,Plasmablast,0
+NKT,Platelet,0
+NKT,Treg,2
+NKT,cDC1,0
+NKT,cDC2,0
+NKT,dnT,1
+NKT,gdT,2
+NKT,pDC,0
+Treg,ASDC,0
+Treg,B intermediate,0
+Treg,B memory,0
+Treg,B naive,0
+Treg,CD14 Mono,1
+Treg,CD16 Mono,0
+Treg,CD4 CTL,2
+Treg,CD4 Naive,28
+Treg,CD4 Proliferating,1
+Treg,CD4 TCM,169
+Treg,CD4 TEM,2
+Treg,CD8 Naive,0
+Treg,CD8 Proliferating,0
+Treg,CD8 TCM,1
+Treg,CD8 TEM,7
+Treg,Eryth,0
+Treg,HSPC,0
+Treg,ILC,0
+Treg,MAIT,0
+Treg,NK,1
+Treg,NK Proliferating,0
+Treg,NK_CD56bright,0
+Treg,Plasmablast,0
+Treg,Platelet,0
+Treg,Treg,142
+Treg,cDC1,0
+Treg,cDC2,0
+Treg,dnT,0
+Treg,gdT,7
+Treg,pDC,0
+gdT,ASDC,0
+gdT,B intermediate,0
+gdT,B memory,0
+gdT,B naive,0
+gdT,CD14 Mono,0
+gdT,CD16 Mono,0
+gdT,CD4 CTL,85
+gdT,CD4 Naive,24
+gdT,CD4 Proliferating,0
+gdT,CD4 TCM,460
+gdT,CD4 TEM,93
+gdT,CD8 Naive,5
+gdT,CD8 Proliferating,8
+gdT,CD8 TCM,27
+gdT,CD8 TEM,352
+gdT,Eryth,0
+gdT,HSPC,1
+gdT,ILC,20
+gdT,MAIT,84
+gdT,NK,59
+gdT,NK Proliferating,6
+gdT,NK_CD56bright,1
+gdT,Plasmablast,0
+gdT,Platelet,0
+gdT,Treg,4
+gdT,cDC1,0
+gdT,cDC2,0
+gdT,dnT,3
+gdT,gdT,701
+gdT,pDC,0
+ILC1_3,ASDC,0
+ILC1_3,B intermediate,0
+ILC1_3,B memory,0
+ILC1_3,B naive,0
+ILC1_3,CD14 Mono,0
+ILC1_3,CD16 Mono,0
+ILC1_3,CD4 CTL,0
+ILC1_3,CD4 Naive,0
+ILC1_3,CD4 Proliferating,0
+ILC1_3,CD4 TCM,0
+ILC1_3,CD4 TEM,0
+ILC1_3,CD8 Naive,0
+ILC1_3,CD8 Proliferating,0
+ILC1_3,CD8 TCM,0
+ILC1_3,CD8 TEM,4
+ILC1_3,Eryth,0
+ILC1_3,HSPC,0
+ILC1_3,ILC,1
+ILC1_3,MAIT,0
+ILC1_3,NK,58
+ILC1_3,NK Proliferating,0
+ILC1_3,NK_CD56bright,13
+ILC1_3,Plasmablast,0
+ILC1_3,Platelet,0
+ILC1_3,Treg,0
+ILC1_3,cDC1,0
+ILC1_3,cDC2,0
+ILC1_3,dnT,0
+ILC1_3,gdT,1
+ILC1_3,pDC,0
+ILC2,ASDC,0
+ILC2,B intermediate,0
+ILC2,B memory,0
+ILC2,B naive,0
+ILC2,CD14 Mono,0
+ILC2,CD16 Mono,0
+ILC2,CD4 CTL,0
+ILC2,CD4 Naive,0
+ILC2,CD4 Proliferating,0
+ILC2,CD4 TCM,0
+ILC2,CD4 TEM,0
+ILC2,CD8 Naive,0
+ILC2,CD8 Proliferating,0
+ILC2,CD8 TCM,0
+ILC2,CD8 TEM,0
+ILC2,Eryth,0
+ILC2,HSPC,0
+ILC2,ILC,1
+ILC2,MAIT,0
+ILC2,NK,0
+ILC2,NK Proliferating,0
+ILC2,NK_CD56bright,8
+ILC2,Plasmablast,0
+ILC2,Platelet,0
+ILC2,Treg,0
+ILC2,cDC1,0
+ILC2,cDC2,0
+ILC2,dnT,0
+ILC2,gdT,0
+ILC2,pDC,0
+B_exhausted,ASDC,0
+B_exhausted,B intermediate,245
+B_exhausted,B memory,14
+B_exhausted,B naive,23
+B_exhausted,CD14 Mono,0
+B_exhausted,CD16 Mono,0
+B_exhausted,CD4 CTL,0
+B_exhausted,CD4 Naive,0
+B_exhausted,CD4 Proliferating,0
+B_exhausted,CD4 TCM,0
+B_exhausted,CD4 TEM,0
+B_exhausted,CD8 Naive,0
+B_exhausted,CD8 Proliferating,0
+B_exhausted,CD8 TCM,0
+B_exhausted,CD8 TEM,0
+B_exhausted,Eryth,0
+B_exhausted,HSPC,0
+B_exhausted,ILC,0
+B_exhausted,MAIT,0
+B_exhausted,NK,0
+B_exhausted,NK Proliferating,0
+B_exhausted,NK_CD56bright,0
+B_exhausted,Plasmablast,1
+B_exhausted,Platelet,0
+B_exhausted,Treg,0
+B_exhausted,cDC1,0
+B_exhausted,cDC2,0
+B_exhausted,dnT,0
+B_exhausted,gdT,0
+B_exhausted,pDC,0
+B_immature,ASDC,0
+B_immature,B intermediate,18
+B_immature,B memory,5
+B_immature,B naive,497
+B_immature,CD14 Mono,0
+B_immature,CD16 Mono,0
+B_immature,CD4 CTL,0
+B_immature,CD4 Naive,0
+B_immature,CD4 Proliferating,0
+B_immature,CD4 TCM,0
+B_immature,CD4 TEM,0
+B_immature,CD8 Naive,0
+B_immature,CD8 Proliferating,0
+B_immature,CD8 TCM,0
+B_immature,CD8 TEM,0
+B_immature,Eryth,0
+B_immature,HSPC,0
+B_immature,ILC,0
+B_immature,MAIT,0
+B_immature,NK,0
+B_immature,NK Proliferating,0
+B_immature,NK_CD56bright,0
+B_immature,Plasmablast,2
+B_immature,Platelet,0
+B_immature,Treg,0
+B_immature,cDC1,0
+B_immature,cDC2,0
+B_immature,dnT,0
+B_immature,gdT,0
+B_immature,pDC,0
+B_malignant,ASDC,0
+B_malignant,B intermediate,149
+B_malignant,B memory,41
+B_malignant,B naive,46
+B_malignant,CD14 Mono,0
+B_malignant,CD16 Mono,0
+B_malignant,CD4 CTL,0
+B_malignant,CD4 Naive,0
+B_malignant,CD4 Proliferating,0
+B_malignant,CD4 TCM,1
+B_malignant,CD4 TEM,0
+B_malignant,CD8 Naive,0
+B_malignant,CD8 Proliferating,0
+B_malignant,CD8 TCM,0
+B_malignant,CD8 TEM,0
+B_malignant,Eryth,0
+B_malignant,HSPC,0
+B_malignant,ILC,0
+B_malignant,MAIT,0
+B_malignant,NK,0
+B_malignant,NK Proliferating,0
+B_malignant,NK_CD56bright,0
+B_malignant,Plasmablast,0
+B_malignant,Platelet,0
+B_malignant,Treg,0
+B_malignant,cDC1,0
+B_malignant,cDC2,0
+B_malignant,dnT,0
+B_malignant,gdT,0
+B_malignant,pDC,0
+B_naive,ASDC,0
+B_naive,B intermediate,636
+B_naive,B memory,296
+B_naive,B naive,3201
+B_naive,CD14 Mono,0
+B_naive,CD16 Mono,0
+B_naive,CD4 CTL,0
+B_naive,CD4 Naive,0
+B_naive,CD4 Proliferating,0
+B_naive,CD4 TCM,1
+B_naive,CD4 TEM,0
+B_naive,CD8 Naive,0
+B_naive,CD8 Proliferating,0
+B_naive,CD8 TCM,0
+B_naive,CD8 TEM,0
+B_naive,Eryth,0
+B_naive,HSPC,0
+B_naive,ILC,0
+B_naive,MAIT,0
+B_naive,NK,0
+B_naive,NK Proliferating,0
+B_naive,NK_CD56bright,0
+B_naive,Plasmablast,48
+B_naive,Platelet,0
+B_naive,Treg,0
+B_naive,cDC1,0
+B_naive,cDC2,0
+B_naive,dnT,0
+B_naive,gdT,0
+B_naive,pDC,0
+B_non-switched_memory,ASDC,0
+B_non-switched_memory,B intermediate,191
+B_non-switched_memory,B memory,40
+B_non-switched_memory,B naive,41
+B_non-switched_memory,CD14 Mono,0
+B_non-switched_memory,CD16 Mono,0
+B_non-switched_memory,CD4 CTL,0
+B_non-switched_memory,CD4 Naive,0
+B_non-switched_memory,CD4 Proliferating,0
+B_non-switched_memory,CD4 TCM,0
+B_non-switched_memory,CD4 TEM,0
+B_non-switched_memory,CD8 Naive,0
+B_non-switched_memory,CD8 Proliferating,0
+B_non-switched_memory,CD8 TCM,0
+B_non-switched_memory,CD8 TEM,0
+B_non-switched_memory,Eryth,0
+B_non-switched_memory,HSPC,0
+B_non-switched_memory,ILC,0
+B_non-switched_memory,MAIT,0
+B_non-switched_memory,NK,0
+B_non-switched_memory,NK Proliferating,0
+B_non-switched_memory,NK_CD56bright,0
+B_non-switched_memory,Plasmablast,1
+B_non-switched_memory,Platelet,0
+B_non-switched_memory,Treg,0
+B_non-switched_memory,cDC1,0
+B_non-switched_memory,cDC2,0
+B_non-switched_memory,dnT,0
+B_non-switched_memory,gdT,0
+B_non-switched_memory,pDC,0
+B_switched_memory,ASDC,0
+B_switched_memory,B intermediate,69
+B_switched_memory,B memory,472
+B_switched_memory,B naive,90
+B_switched_memory,CD14 Mono,0
+B_switched_memory,CD16 Mono,0
+B_switched_memory,CD4 CTL,0
+B_switched_memory,CD4 Naive,0
+B_switched_memory,CD4 Proliferating,0
+B_switched_memory,CD4 TCM,0
+B_switched_memory,CD4 TEM,0
+B_switched_memory,CD8 Naive,0
+B_switched_memory,CD8 Proliferating,0
+B_switched_memory,CD8 TCM,0
+B_switched_memory,CD8 TEM,0
+B_switched_memory,Eryth,0
+B_switched_memory,HSPC,0
+B_switched_memory,ILC,0
+B_switched_memory,MAIT,0
+B_switched_memory,NK,0
+B_switched_memory,NK Proliferating,0
+B_switched_memory,NK_CD56bright,0
+B_switched_memory,Plasmablast,2
+B_switched_memory,Platelet,0
+B_switched_memory,Treg,0
+B_switched_memory,cDC1,0
+B_switched_memory,cDC2,0
+B_switched_memory,dnT,0
+B_switched_memory,gdT,0
+B_switched_memory,pDC,0
+Plasma_cell_IgA,ASDC,0
+Plasma_cell_IgA,B intermediate,9
+Plasma_cell_IgA,B memory,28
+Plasma_cell_IgA,B naive,16
+Plasma_cell_IgA,CD14 Mono,0
+Plasma_cell_IgA,CD16 Mono,0
+Plasma_cell_IgA,CD4 CTL,0
+Plasma_cell_IgA,CD4 Naive,0
+Plasma_cell_IgA,CD4 Proliferating,0
+Plasma_cell_IgA,CD4 TCM,1
+Plasma_cell_IgA,CD4 TEM,0
+Plasma_cell_IgA,CD8 Naive,0
+Plasma_cell_IgA,CD8 Proliferating,0
+Plasma_cell_IgA,CD8 TCM,0
+Plasma_cell_IgA,CD8 TEM,0
+Plasma_cell_IgA,Eryth,0
+Plasma_cell_IgA,HSPC,0
+Plasma_cell_IgA,ILC,0
+Plasma_cell_IgA,MAIT,0
+Plasma_cell_IgA,NK,0
+Plasma_cell_IgA,NK Proliferating,0
+Plasma_cell_IgA,NK_CD56bright,0
+Plasma_cell_IgA,Plasmablast,218
+Plasma_cell_IgA,Platelet,0
+Plasma_cell_IgA,Treg,0
+Plasma_cell_IgA,cDC1,0
+Plasma_cell_IgA,cDC2,0
+Plasma_cell_IgA,dnT,0
+Plasma_cell_IgA,gdT,0
+Plasma_cell_IgA,pDC,0
+Plasma_cell_IgG,ASDC,0
+Plasma_cell_IgG,B intermediate,26
+Plasma_cell_IgG,B memory,30
+Plasma_cell_IgG,B naive,41
+Plasma_cell_IgG,CD14 Mono,0
+Plasma_cell_IgG,CD16 Mono,0
+Plasma_cell_IgG,CD4 CTL,0
+Plasma_cell_IgG,CD4 Naive,0
+Plasma_cell_IgG,CD4 Proliferating,0
+Plasma_cell_IgG,CD4 TCM,0
+Plasma_cell_IgG,CD4 TEM,0
+Plasma_cell_IgG,CD8 Naive,0
+Plasma_cell_IgG,CD8 Proliferating,0
+Plasma_cell_IgG,CD8 TCM,0
+Plasma_cell_IgG,CD8 TEM,0
+Plasma_cell_IgG,Eryth,0
+Plasma_cell_IgG,HSPC,0
+Plasma_cell_IgG,ILC,0
+Plasma_cell_IgG,MAIT,0
+Plasma_cell_IgG,NK,0
+Plasma_cell_IgG,NK Proliferating,0
+Plasma_cell_IgG,NK_CD56bright,0
+Plasma_cell_IgG,Plasmablast,235
+Plasma_cell_IgG,Platelet,0
+Plasma_cell_IgG,Treg,0
+Plasma_cell_IgG,cDC1,0
+Plasma_cell_IgG,cDC2,0
+Plasma_cell_IgG,dnT,0
+Plasma_cell_IgG,gdT,0
+Plasma_cell_IgG,pDC,0
+Plasma_cell_IgM,ASDC,0
+Plasma_cell_IgM,B intermediate,4
+Plasma_cell_IgM,B memory,0
+Plasma_cell_IgM,B naive,31
+Plasma_cell_IgM,CD14 Mono,0
+Plasma_cell_IgM,CD16 Mono,0
+Plasma_cell_IgM,CD4 CTL,0
+Plasma_cell_IgM,CD4 Naive,0
+Plasma_cell_IgM,CD4 Proliferating,0
+Plasma_cell_IgM,CD4 TCM,0
+Plasma_cell_IgM,CD4 TEM,0
+Plasma_cell_IgM,CD8 Naive,0
+Plasma_cell_IgM,CD8 Proliferating,0
+Plasma_cell_IgM,CD8 TCM,0
+Plasma_cell_IgM,CD8 TEM,0
+Plasma_cell_IgM,Eryth,0
+Plasma_cell_IgM,HSPC,0
+Plasma_cell_IgM,ILC,0
+Plasma_cell_IgM,MAIT,0
+Plasma_cell_IgM,NK,0
+Plasma_cell_IgM,NK Proliferating,0
+Plasma_cell_IgM,NK_CD56bright,0
+Plasma_cell_IgM,Plasmablast,41
+Plasma_cell_IgM,Platelet,0
+Plasma_cell_IgM,Treg,0
+Plasma_cell_IgM,cDC1,0
+Plasma_cell_IgM,cDC2,0
+Plasma_cell_IgM,dnT,0
+Plasma_cell_IgM,gdT,0
+Plasma_cell_IgM,pDC,0
+Plasmablast,ASDC,0
+Plasmablast,B intermediate,22
+Plasmablast,B memory,30
+Plasmablast,B naive,35
+Plasmablast,CD14 Mono,1
+Plasmablast,CD16 Mono,0
+Plasmablast,CD4 CTL,0
+Plasmablast,CD4 Naive,0
+Plasmablast,CD4 Proliferating,0
+Plasmablast,CD4 TCM,13
+Plasmablast,CD4 TEM,0
+Plasmablast,CD8 Naive,0
+Plasmablast,CD8 Proliferating,0
+Plasmablast,CD8 TCM,0
+Plasmablast,CD8 TEM,1
+Plasmablast,Eryth,0
+Plasmablast,HSPC,0
+Plasmablast,ILC,0
+Plasmablast,MAIT,0
+Plasmablast,NK,0
+Plasmablast,NK Proliferating,0
+Plasmablast,NK_CD56bright,0
+Plasmablast,Plasmablast,529
+Plasmablast,Platelet,0
+Plasmablast,Treg,0
+Plasmablast,cDC1,0
+Plasmablast,cDC2,0
+Plasmablast,dnT,0
+Plasmablast,gdT,0
+Plasmablast,pDC,0
+ASDC,ASDC,5
+ASDC,B intermediate,0
+ASDC,B memory,0
+ASDC,B naive,0
+ASDC,CD14 Mono,0
+ASDC,CD16 Mono,0
+ASDC,CD4 CTL,0
+ASDC,CD4 Naive,0
+ASDC,CD4 Proliferating,0
+ASDC,CD4 TCM,0
+ASDC,CD4 TEM,0
+ASDC,CD8 Naive,0
+ASDC,CD8 Proliferating,0
+ASDC,CD8 TCM,0
+ASDC,CD8 TEM,0
+ASDC,Eryth,0
+ASDC,HSPC,0
+ASDC,ILC,0
+ASDC,MAIT,0
+ASDC,NK,0
+ASDC,NK Proliferating,0
+ASDC,NK_CD56bright,0
+ASDC,Plasmablast,0
+ASDC,Platelet,0
+ASDC,Treg,0
+ASDC,cDC1,0
+ASDC,cDC2,0
+ASDC,dnT,0
+ASDC,gdT,0
+ASDC,pDC,1
+DC1,ASDC,0
+DC1,B intermediate,0
+DC1,B memory,0
+DC1,B naive,0
+DC1,CD14 Mono,0
+DC1,CD16 Mono,0
+DC1,CD4 CTL,0
+DC1,CD4 Naive,0
+DC1,CD4 Proliferating,0
+DC1,CD4 TCM,0
+DC1,CD4 TEM,0
+DC1,CD8 Naive,0
+DC1,CD8 Proliferating,0
+DC1,CD8 TCM,0
+DC1,CD8 TEM,0
+DC1,Eryth,0
+DC1,HSPC,0
+DC1,ILC,0
+DC1,MAIT,0
+DC1,NK,0
+DC1,NK Proliferating,0
+DC1,NK_CD56bright,0
+DC1,Plasmablast,0
+DC1,Platelet,0
+DC1,Treg,0
+DC1,cDC1,36
+DC1,cDC2,3
+DC1,dnT,0
+DC1,gdT,0
+DC1,pDC,0
+DC2,ASDC,2
+DC2,B intermediate,0
+DC2,B memory,0
+DC2,B naive,0
+DC2,CD14 Mono,3
+DC2,CD16 Mono,0
+DC2,CD4 CTL,0
+DC2,CD4 Naive,0
+DC2,CD4 Proliferating,0
+DC2,CD4 TCM,0
+DC2,CD4 TEM,0
+DC2,CD8 Naive,0
+DC2,CD8 Proliferating,0
+DC2,CD8 TCM,0
+DC2,CD8 TEM,0
+DC2,Eryth,0
+DC2,HSPC,0
+DC2,ILC,0
+DC2,MAIT,0
+DC2,NK,0
+DC2,NK Proliferating,0
+DC2,NK_CD56bright,0
+DC2,Plasmablast,0
+DC2,Platelet,0
+DC2,Treg,0
+DC2,cDC1,0
+DC2,cDC2,324
+DC2,dnT,0
+DC2,gdT,0
+DC2,pDC,0
+DC3,ASDC,1
+DC3,B intermediate,0
+DC3,B memory,0
+DC3,B naive,1
+DC3,CD14 Mono,89
+DC3,CD16 Mono,0
+DC3,CD4 CTL,0
+DC3,CD4 Naive,0
+DC3,CD4 Proliferating,0
+DC3,CD4 TCM,0
+DC3,CD4 TEM,0
+DC3,CD8 Naive,0
+DC3,CD8 Proliferating,0
+DC3,CD8 TCM,1
+DC3,CD8 TEM,0
+DC3,Eryth,0
+DC3,HSPC,1
+DC3,ILC,0
+DC3,MAIT,0
+DC3,NK,0
+DC3,NK Proliferating,0
+DC3,NK_CD56bright,0
+DC3,Plasmablast,0
+DC3,Platelet,0
+DC3,Treg,0
+DC3,cDC1,1
+DC3,cDC2,261
+DC3,dnT,0
+DC3,gdT,0
+DC3,pDC,0
+DC_prolif,ASDC,0
+DC_prolif,B intermediate,0
+DC_prolif,B memory,0
+DC_prolif,B naive,0
+DC_prolif,CD14 Mono,3
+DC_prolif,CD16 Mono,0
+DC_prolif,CD4 CTL,0
+DC_prolif,CD4 Naive,0
+DC_prolif,CD4 Proliferating,0
+DC_prolif,CD4 TCM,0
+DC_prolif,CD4 TEM,0
+DC_prolif,CD8 Naive,0
+DC_prolif,CD8 Proliferating,0
+DC_prolif,CD8 TCM,0
+DC_prolif,CD8 TEM,0
+DC_prolif,Eryth,0
+DC_prolif,HSPC,0
+DC_prolif,ILC,0
+DC_prolif,MAIT,0
+DC_prolif,NK,0
+DC_prolif,NK Proliferating,0
+DC_prolif,NK_CD56bright,0
+DC_prolif,Plasmablast,0
+DC_prolif,Platelet,0
+DC_prolif,Treg,0
+DC_prolif,cDC1,2
+DC_prolif,cDC2,7
+DC_prolif,dnT,0
+DC_prolif,gdT,0
+DC_prolif,pDC,1
+HSC,ASDC,0
+HSC,B intermediate,0
+HSC,B memory,0
+HSC,B naive,0
+HSC,CD14 Mono,8
+HSC,CD16 Mono,0
+HSC,CD4 CTL,0
+HSC,CD4 Naive,0
+HSC,CD4 Proliferating,0
+HSC,CD4 TCM,0
+HSC,CD4 TEM,0
+HSC,CD8 Naive,0
+HSC,CD8 Proliferating,0
+HSC,CD8 TCM,1
+HSC,CD8 TEM,1
+HSC,Eryth,0
+HSC,HSPC,333
+HSC,ILC,0
+HSC,MAIT,0
+HSC,NK,0
+HSC,NK Proliferating,0
+HSC,NK_CD56bright,0
+HSC,Plasmablast,0
+HSC,Platelet,0
+HSC,Treg,0
+HSC,cDC1,0
+HSC,cDC2,0
+HSC,dnT,0
+HSC,gdT,0
+HSC,pDC,0
+Mono_prolif,ASDC,0
+Mono_prolif,B intermediate,0
+Mono_prolif,B memory,0
+Mono_prolif,B naive,0
+Mono_prolif,CD14 Mono,62
+Mono_prolif,CD16 Mono,1
+Mono_prolif,CD4 CTL,0
+Mono_prolif,CD4 Naive,0
+Mono_prolif,CD4 Proliferating,0
+Mono_prolif,CD4 TCM,0
+Mono_prolif,CD4 TEM,0
+Mono_prolif,CD8 Naive,0
+Mono_prolif,CD8 Proliferating,0
+Mono_prolif,CD8 TCM,0
+Mono_prolif,CD8 TEM,0
+Mono_prolif,Eryth,0
+Mono_prolif,HSPC,0
+Mono_prolif,ILC,0
+Mono_prolif,MAIT,0
+Mono_prolif,NK,0
+Mono_prolif,NK Proliferating,0
+Mono_prolif,NK_CD56bright,0
+Mono_prolif,Plasmablast,0
+Mono_prolif,Platelet,0
+Mono_prolif,Treg,0
+Mono_prolif,cDC1,0
+Mono_prolif,cDC2,0
+Mono_prolif,dnT,0
+Mono_prolif,gdT,0
+Mono_prolif,pDC,0
+NK_16hi,ASDC,0
+NK_16hi,B intermediate,0
+NK_16hi,B memory,0
+NK_16hi,B naive,0
+NK_16hi,CD14 Mono,0
+NK_16hi,CD16 Mono,0
+NK_16hi,CD4 CTL,22
+NK_16hi,CD4 Naive,0
+NK_16hi,CD4 Proliferating,0
+NK_16hi,CD4 TCM,1
+NK_16hi,CD4 TEM,1
+NK_16hi,CD8 Naive,0
+NK_16hi,CD8 Proliferating,0
+NK_16hi,CD8 TCM,0
+NK_16hi,CD8 TEM,270
+NK_16hi,Eryth,0
+NK_16hi,HSPC,0
+NK_16hi,ILC,0
+NK_16hi,MAIT,0
+NK_16hi,NK,7586
+NK_16hi,NK Proliferating,32
+NK_16hi,NK_CD56bright,1
+NK_16hi,Plasmablast,0
+NK_16hi,Platelet,0
+NK_16hi,Treg,0
+NK_16hi,cDC1,0
+NK_16hi,cDC2,0
+NK_16hi,dnT,0
+NK_16hi,gdT,60
+NK_16hi,pDC,0
+NK_56hi,ASDC,0
+NK_56hi,B intermediate,0
+NK_56hi,B memory,0
+NK_56hi,B naive,0
+NK_56hi,CD14 Mono,0
+NK_56hi,CD16 Mono,0
+NK_56hi,CD4 CTL,59
+NK_56hi,CD4 Naive,5
+NK_56hi,CD4 Proliferating,0
+NK_56hi,CD4 TCM,16
+NK_56hi,CD4 TEM,8
+NK_56hi,CD8 Naive,1
+NK_56hi,CD8 Proliferating,0
+NK_56hi,CD8 TCM,0
+NK_56hi,CD8 TEM,386
+NK_56hi,Eryth,0
+NK_56hi,HSPC,0
+NK_56hi,ILC,10
+NK_56hi,MAIT,13
+NK_56hi,NK,1331
+NK_56hi,NK Proliferating,16
+NK_56hi,NK_CD56bright,639
+NK_56hi,Plasmablast,0
+NK_56hi,Platelet,1
+NK_56hi,Treg,0
+NK_56hi,cDC1,0
+NK_56hi,cDC2,0
+NK_56hi,dnT,1
+NK_56hi,gdT,41
+NK_56hi,pDC,0
+NK_prolif,ASDC,0
+NK_prolif,B intermediate,0
+NK_prolif,B memory,0
+NK_prolif,B naive,0
+NK_prolif,CD14 Mono,0
+NK_prolif,CD16 Mono,0
+NK_prolif,CD4 CTL,2
+NK_prolif,CD4 Naive,0
+NK_prolif,CD4 Proliferating,1
+NK_prolif,CD4 TCM,0
+NK_prolif,CD4 TEM,0
+NK_prolif,CD8 Naive,0
+NK_prolif,CD8 Proliferating,3
+NK_prolif,CD8 TCM,0
+NK_prolif,CD8 TEM,8
+NK_prolif,Eryth,0
+NK_prolif,HSPC,0
+NK_prolif,ILC,0
+NK_prolif,MAIT,0
+NK_prolif,NK,131
+NK_prolif,NK Proliferating,341
+NK_prolif,NK_CD56bright,1
+NK_prolif,Plasmablast,0
+NK_prolif,Platelet,0
+NK_prolif,Treg,0
+NK_prolif,cDC1,0
+NK_prolif,cDC2,0
+NK_prolif,dnT,0
+NK_prolif,gdT,1
+NK_prolif,pDC,0
+Platelets,ASDC,0
+Platelets,B intermediate,4
+Platelets,B memory,0
+Platelets,B naive,0
+Platelets,CD14 Mono,2
+Platelets,CD16 Mono,0
+Platelets,CD4 CTL,2
+Platelets,CD4 Naive,19
+Platelets,CD4 Proliferating,0
+Platelets,CD4 TCM,151
+Platelets,CD4 TEM,4
+Platelets,CD8 Naive,15
+Platelets,CD8 Proliferating,0
+Platelets,CD8 TCM,7
+Platelets,CD8 TEM,18
+Platelets,Eryth,0
+Platelets,HSPC,0
+Platelets,ILC,1
+Platelets,MAIT,4
+Platelets,NK,14
+Platelets,NK Proliferating,0
+Platelets,NK_CD56bright,3
+Platelets,Plasmablast,0
+Platelets,Platelet,1077
+Platelets,Treg,6
+Platelets,cDC1,1
+Platelets,cDC2,0
+Platelets,dnT,1
+Platelets,gdT,2
+Platelets,pDC,0
+RBC,ASDC,0
+RBC,B intermediate,7
+RBC,B memory,3
+RBC,B naive,9
+RBC,CD14 Mono,10
+RBC,CD16 Mono,0
+RBC,CD4 CTL,4
+RBC,CD4 Naive,0
+RBC,CD4 Proliferating,6
+RBC,CD4 TCM,4
+RBC,CD4 TEM,0
+RBC,CD8 Naive,0
+RBC,CD8 Proliferating,0
+RBC,CD8 TCM,0
+RBC,CD8 TEM,3
+RBC,Eryth,135
+RBC,HSPC,1
+RBC,ILC,0
+RBC,MAIT,0
+RBC,NK,10
+RBC,NK Proliferating,0
+RBC,NK_CD56bright,2
+RBC,Plasmablast,1
+RBC,Platelet,1
+RBC,Treg,1
+RBC,cDC1,0
+RBC,cDC2,1
+RBC,dnT,1
+RBC,gdT,0
+RBC,pDC,0
+CD83_CD14_mono,ASDC,0
+CD83_CD14_mono,B intermediate,0
+CD83_CD14_mono,B memory,0
+CD83_CD14_mono,B naive,0
+CD83_CD14_mono,CD14 Mono,5740
+CD83_CD14_mono,CD16 Mono,32
+CD83_CD14_mono,CD4 CTL,0
+CD83_CD14_mono,CD4 Naive,0
+CD83_CD14_mono,CD4 Proliferating,0
+CD83_CD14_mono,CD4 TCM,0
+CD83_CD14_mono,CD4 TEM,0
+CD83_CD14_mono,CD8 Naive,0
+CD83_CD14_mono,CD8 Proliferating,0
+CD83_CD14_mono,CD8 TCM,0
+CD83_CD14_mono,CD8 TEM,0
+CD83_CD14_mono,Eryth,0
+CD83_CD14_mono,HSPC,0
+CD83_CD14_mono,ILC,0
+CD83_CD14_mono,MAIT,0
+CD83_CD14_mono,NK,0
+CD83_CD14_mono,NK Proliferating,0
+CD83_CD14_mono,NK_CD56bright,0
+CD83_CD14_mono,Plasmablast,0
+CD83_CD14_mono,Platelet,0
+CD83_CD14_mono,Treg,0
+CD83_CD14_mono,cDC1,0
+CD83_CD14_mono,cDC2,9
+CD83_CD14_mono,dnT,0
+CD83_CD14_mono,gdT,0
+CD83_CD14_mono,pDC,0
+CD14_mono,ASDC,0
+CD14_mono,B intermediate,1
+CD14_mono,B memory,0
+CD14_mono,B naive,0
+CD14_mono,CD14 Mono,6126
+CD14_mono,CD16 Mono,70
+CD14_mono,CD4 CTL,0
+CD14_mono,CD4 Naive,0
+CD14_mono,CD4 Proliferating,0
+CD14_mono,CD4 TCM,3
+CD14_mono,CD4 TEM,0
+CD14_mono,CD8 Naive,0
+CD14_mono,CD8 Proliferating,0
+CD14_mono,CD8 TCM,0
+CD14_mono,CD8 TEM,0
+CD14_mono,Eryth,0
+CD14_mono,HSPC,0
+CD14_mono,ILC,0
+CD14_mono,MAIT,0
+CD14_mono,NK,0
+CD14_mono,NK Proliferating,0
+CD14_mono,NK_CD56bright,0
+CD14_mono,Plasmablast,0
+CD14_mono,Platelet,0
+CD14_mono,Treg,0
+CD14_mono,cDC1,1
+CD14_mono,cDC2,8
+CD14_mono,dnT,0
+CD14_mono,gdT,0
+CD14_mono,pDC,0
+CD16_mono,ASDC,0
+CD16_mono,B intermediate,0
+CD16_mono,B memory,0
+CD16_mono,B naive,0
+CD16_mono,CD14 Mono,448
+CD16_mono,CD16 Mono,1213
+CD16_mono,CD4 CTL,0
+CD16_mono,CD4 Naive,0
+CD16_mono,CD4 Proliferating,0
+CD16_mono,CD4 TCM,0
+CD16_mono,CD4 TEM,0
+CD16_mono,CD8 Naive,0
+CD16_mono,CD8 Proliferating,0
+CD16_mono,CD8 TCM,0
+CD16_mono,CD8 TEM,0
+CD16_mono,Eryth,0
+CD16_mono,HSPC,0
+CD16_mono,ILC,0
+CD16_mono,MAIT,0
+CD16_mono,NK,0
+CD16_mono,NK Proliferating,0
+CD16_mono,NK_CD56bright,0
+CD16_mono,Plasmablast,0
+CD16_mono,Platelet,0
+CD16_mono,Treg,0
+CD16_mono,cDC1,0
+CD16_mono,cDC2,0
+CD16_mono,dnT,0
+CD16_mono,gdT,0
+CD16_mono,pDC,0
+C1_CD16_mono,ASDC,0
+C1_CD16_mono,B intermediate,0
+C1_CD16_mono,B memory,0
+C1_CD16_mono,B naive,0
+C1_CD16_mono,CD14 Mono,153
+C1_CD16_mono,CD16 Mono,305
+C1_CD16_mono,CD4 CTL,0
+C1_CD16_mono,CD4 Naive,0
+C1_CD16_mono,CD4 Proliferating,0
+C1_CD16_mono,CD4 TCM,0
+C1_CD16_mono,CD4 TEM,0
+C1_CD16_mono,CD8 Naive,0
+C1_CD16_mono,CD8 Proliferating,0
+C1_CD16_mono,CD8 TCM,0
+C1_CD16_mono,CD8 TEM,0
+C1_CD16_mono,Eryth,0
+C1_CD16_mono,HSPC,0
+C1_CD16_mono,ILC,0
+C1_CD16_mono,MAIT,0
+C1_CD16_mono,NK,0
+C1_CD16_mono,NK Proliferating,0
+C1_CD16_mono,NK_CD56bright,0
+C1_CD16_mono,Plasmablast,0
+C1_CD16_mono,Platelet,0
+C1_CD16_mono,Treg,0
+C1_CD16_mono,cDC1,0
+C1_CD16_mono,cDC2,11
+C1_CD16_mono,dnT,0
+C1_CD16_mono,gdT,0
+C1_CD16_mono,pDC,0
+pDC,ASDC,0
+pDC,B intermediate,0
+pDC,B memory,0
+pDC,B naive,0
+pDC,CD14 Mono,9
+pDC,CD16 Mono,0
+pDC,CD4 CTL,0
+pDC,CD4 Naive,1
+pDC,CD4 Proliferating,0
+pDC,CD4 TCM,0
+pDC,CD4 TEM,0
+pDC,CD8 Naive,0
+pDC,CD8 Proliferating,0
+pDC,CD8 TCM,0
+pDC,CD8 TEM,0
+pDC,Eryth,0
+pDC,HSPC,6
+pDC,ILC,0
+pDC,MAIT,0
+pDC,NK,0
+pDC,NK Proliferating,0
+pDC,NK_CD56bright,0
+pDC,Plasmablast,0
+pDC,Platelet,0
+pDC,Treg,0
+pDC,cDC1,0
+pDC,cDC2,1
+pDC,dnT,0
+pDC,gdT,1
+pDC,pDC,447

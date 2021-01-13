@@ -1,0 +1,70 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+library(reshape2)
+library(dplyr)
+library(ggplot2)
+
+setwd("~/Desktop/Covid")
+
+a<-read.csv('azimuth_pred.csv')
+colnames(a)<-c("ours", "azimuth", 'value')
+
+a<-a[!a$azimuth == "nan",]
+
+a<-a %>%
+  group_by(ours) %>%
+  mutate(freq = value / sum(value))
+
+a$ours[a$ours == "ILC"]<-"NK_16hi"
+
+a<-subset(a, ours!="Doublet")
+
+a$azimuth <- factor(a$azimuth, levels = rev(c("CD4 Naive", "CD4 TEM", "CD4 TCM", "CD4 CTL", 
+                                          "CD4 Proliferating", "Treg",
+                                          "CD8 Naive", "CD8 TEM", "CD8 TCM", "dnT",
+                                          "CD8 Proliferating",
+                                          "MAIT", "gdT", "ILC",
+                                          "NK", "NK_CD56bright", "NK Proliferating",
+                                          "B naive", "B intermediate", "B memory", 
+                                          "Plasmablast",
+                                          "ASDC", "cDC1", "cDC2", "pDC",
+                                          "CD14 Mono", "CD16 Mono",
+                                          "HSPC",
+                                          "Eryth", "Platelet"
+)))
+
+a$ours <- factor(a$ours, levels = c("CD4.Naive", "CD4.CM", "CD4.EM", 
+                                    "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Tfh", "CD4.IL22",
+                                    "CD4.Prolif", "Treg",
+                                    "CD8.Naive", "CD8.TE", "CD8.EM",
+                                    "CD8.Prolif",
+                                    "MAIT", "gdT", "NKT",
+                                    "NK_56hi", "NK_16hi", "NK_prolif",
+                                    "ILC1_3", "ILC2",
+                                    "B_naive", "B_immature",
+                                    "B_non-switched_memory", "B_switched_memory",
+                                    "B_exhausted", "B_malignant",
+                                    "Plasmablast",
+                                    "Plasma_cell_IgM", "Plasma_cell_IgG", "Plasma_cell_IgA",
+                                    "ASDC", "DC1", "DC2", "DC3", "pDC", "DC_prolif",
+                                    "CD83_CD14_mono", "CD14_mono", 
+                                    "CD16_mono", "C1_CD16_mono", "Mono_prolif",
+                                    "HSC",
+                                    "RBC", "Platelets"
+                                    
+))
+
+ggplot(a,aes(x=ours,y=azimuth,fill=freq))+
+  geom_tile(colour="white",size=0.2)+
+  scale_fill_distiller(palette = "Spectral")+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+coord_fixed()
+```
+
+
