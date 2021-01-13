@@ -1,6 +1,10 @@
 # COVIDPBMC
 Multi-omics profiling of peripheral immune system response to SARS-CoV-2 infection.
 
+## Interactive Web Portal
+<a href="https://www.covid19cellatlas.org/haniffa21/" rel="COVID-19 cell atlas"><img src="https://www.covid19cellatlas.org/logos/chan-zuckerberg-initiative.png" height="100"></a>
+
+## Groups
 <a href="https://haniffalab.com" rel="Haniffa Lab"><img src="https://avatars0.githubusercontent.com/u/44367631?s=200&v=4" height="100"></a>
 
 [Haniffa Lab github](https://github.com/haniffalab)
@@ -13,6 +17,11 @@ Multi-omics profiling of peripheral immune system response to SARS-CoV-2 infecti
 
 [MarioniLab github](https://github.com/MarioniLab)
 
+[Göttgens Lab](http://www.haem.cam.ac.uk/staff/senior-staff/professor-bertie-gottgens/)
+
+[Clatworthy Lab](https://www.med.cam.ac.uk/clatworthy/)
+
+## BCR analysis package
 <a href="https://sc-dandelion.readthedocs.io/" rel="dandelion"><img src="https://github.com/zktuong/dandelion/blob/master/notebooks/img/dandelion_logo.png" height="100"></a>
 
 [dandelion github](https://github.com/zktuong/dandelion)
