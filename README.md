@@ -2,8 +2,10 @@
 Multi-omics profiling of peripheral immune system response to SARS-CoV-2 infection.
 
 ## Web portal
-<a href="https://www.sanger.ac.uk/" rel="COVID-19 cell atlas"><img src="https://www.covid19cellatlas.org/logos/sanger.png" height="100"></a>
-<a href="https://chanzuckerberg.com/" rel="COVID-19 cell atlas"><img src="https://www.covid19cellatlas.org/logos/chan-zuckerberg-initiative.png" height="100"></a>
+<a href="https://www.sanger.ac.uk/" rel="Wellcome Trust Sanger Institute"><img src="https://www.covid19cellatlas.org/logos/sanger.png" height="100"></a>
+<a href="https://data.humancellatlas.org/" rel="Human cell atlas"><img src="https://www.covid19cellatlas.org/logos/human-cell-atlas.png" height="100"></a>
+<a href="https://chanzuckerberg.com/" rel="Chan-Zuckerberg Initiative"><img src="https://www.covid19cellatlas.org/logos/chan-zuckerberg-initiative.png" height="100"></a>
+
 Explore the full COVID-19 cell atlas [here](https://www.covid19cellatlas.org/)
 
 Data is available under `COVID-19 PBMC Ncl-Cambridge-UCL`. Interactive view available [here](https://covid19cellatlas.org/haniffa21).
