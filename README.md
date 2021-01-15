@@ -3,9 +3,10 @@
 
 The COVID-19 pandemic, caused by SARS coronavirus 2 (SARS-CoV-2), has resulted in excess morbidity and mortality as well as economic decline. To characterise the systemic host immune response to SARS-CoV-2, we performed single-cell RNA-sequencing coupled with analysis of cell surface proteins and T and B lymphocyte antigen receptor repertoires, providing molecular profiling of over 800,000 peripheral blood mononuclear cells from a cohort of 130 patients with COVID-19.  Our cohort, from three UK centres, spans the spectrum of clinical presentations and disease severities ranging from asymptomatic to critical.
 
-For more information, please read our manuscript at:
+For more information, please read our preprint:
 
-Manuscript preprint link placeholder
+*Emily Stephenson, Gary Reynolds, Rachel A Botting, Fernando J Calero-Nieto, Michael Morgan, Zewen Kelvin Tuong, Karsten Bach, Waradon Sungnak, Kaylee B Worlock, Masahiro Yoshida, Natsuhiko Kumasaka, Katarzyna Kania, Justin Engelbert, Bayanne Olabi, Jarmila Stremenova Spegarova, Nicola K Wilson, Nicole Mende, Laura Jardine, Louis CS Gardner, Issac Goh, Dave Horsfall, Jim McGrath, Simone Webb, Michael W Mather, Rik GH Lindeboom, Emma Dann, Ni Huang, Krzysztof Polanski, Elena Prigmore, Florian Gothe, Jonathan Scott, Rebecca P Payne, Kenneth F Baker, Aidan T Hanrath, Ina CD Schim van der Loeff, Andrew S Barr, Amada Sanchez-Gonzalez, Laura Bergamaschi, Federica Mescia, Josephine L Barnes, Eliz Kilich, Angus de Wilton, Anita Saigal, Aarash Saleh, Sam M Janes, Claire M Smith, Nusayhah Gopee, Caroline Wilson, Paul Coupland, Jonathan M Coxhead, Vladimir Y Kiselev, Stijn van Dongen, Jaume Bacardit, Hamish W King, Anthony J Rostron, A John Simpson, Sophie Hambleton, Elisa Laurenti, Paul A Lyons, Kerstin B Meyer, Marko Z Nikolic, Christopher JA Duncan, Ken Smith, Sarah A Teichmann, Menna R Clatworthy, John C Marioni, Berthold Gottgens, Muzlifah Haniffa.* ***The cellular immune response to COVID-19 deciphered by single cell multi-omics across three UK centres***. *medRxiv 2021.01.13.21249725; doi: https://doi.org/10.1101/2021.01.13.21249725*
+
 
 ## Web portal
 <a href="https://www.sanger.ac.uk/" rel="Wellcome Trust Sanger Institute"><img src="https://www.covid19cellatlas.org/logos/sanger.png" height="100"></a>
