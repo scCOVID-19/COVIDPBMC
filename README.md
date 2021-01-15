@@ -32,7 +32,10 @@ Data is available under `COVID-19 PBMC Ncl-Cambridge-UCL`. Interactive view avai
 
 [Göttgens Lab](http://www.haem.cam.ac.uk/staff/senior-staff/professor-bertie-gottgens/)
 
-<a href="https://www.med.cam.ac.uk/clatworthy/" rel="Clatworthy Lab"><img src="https://clatworthylab.github.io/assets/img/clatworthylab_bold.svg" height="100"></a> [![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/clatworthylab.svg?style=social&label=Follow%20%40clatworthylab)](https://twitter.com/clatworthylab)
+<a href="https://clatworthylab.github.io/" rel="Clatworthy Lab"><img src="https://clatworthylab.github.io/assets/img/clatworthylab_bold.svg" height="100"></a> [![Twitter URL](https://img.shields.io/twitter/url/https/twitter.com/clatworthylab.svg?style=social&label=Follow%20%40clatworthylab)](https://twitter.com/clatworthylab)
+
+[Clatworthy Lab](https://www.med.cam.ac.uk/clatworthy/)
+
 
 
 ## BCR analysis package
