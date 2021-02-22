@@ -1,0 +1,282 @@
+---
+title: "COVID19: Correlation analyses"
+output: html_notebook
+---
+
+We want to know if co-ordination between immune cell proportions is preserved or perturbed in COVID19. One way to do this is to compute a differential 
+correlation across disease severity groups, comparing proportions of different populations, as well as genes and biomolecules of interest.
+
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggsci)
+library(cowplot)
+library(ComplexHeatmap)
+library(RColorBrewer)
+library(pheatmap)
+library(reshape2)
+library(colorspace)
+library(dplyr)
+library(ggthemes)
+library(scales)
+library(ggrepel)
+library(MASS)
+library(DCARS)
+library(kableExtra)
+library(knitr)
+```
+
+
+```{r}
+cell.order <- c("CD4.Naive", "CD4.CM", "CD4.EM", "CD4.IL22", "CD4.Prolif", "CD4.Th1", "CD4.Th2", "CD4.Th17", "CD4.Tfh",
+                "Treg", "CD8.Naive", "CD8.Activated", "CD8.Prolif", "CD8.CM", "CD8.TE", "CD8.EM", "gdT", "MAIT", "NKT")
+
+all.qual.cols <- brewer.pal.info[brewer.pal.info$category %in% c("qual") & brewer.pal.info$colorblind, ]
+col_vector = unlist(mapply(brewer.pal, all.qual.cols$maxcolors, rownames(all.qual.cols)))
+
+# cell.cols <- col_vector[c(1:7, 9:19)]
+cell.cols <- col_vector[c(1:17, 19, 20)]
+names(cell.cols) <- cell.order
+```
+
+```{r, warning=FALSE, message=FALSE}
+all.meta <- read.table("~/Dropbox/COVID19/Data/Updated/COVID19_scMeta-data.tsv",
+                       sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(all.meta) <- all.meta$CellID
+
+# remove BGCV01_CV0209 and CV0198
+all.meta <- all.meta[!all.meta$sample_id %in% c("BGCV01_CV0902"), ]
+all.meta <- all.meta[!all.meta$patient_id %in% c("CV0198"), ]
+```
+
+To normalise the cell type proportions, I need to know how many cells were captured for each patient-sample combo.
+
+```{r, warning=FALSE, message=FALSE}
+n.cell.vecc <- table(all.meta$sample_id)
+```
+
+```{r, warning=FALSE, message=FALSE}
+tcell.annotations <- read.table("~/Dropbox/COVID19/Data/Updated/Tcell_annotations_ext.tsv",
+                                sep="\t", header=TRUE, stringsAsFactors=FALSE)
+tcell.meta <- merge(all.meta, tcell.annotations, by='CellID')
+
+covid.meta <- read.csv("~/Dropbox/COVID19/Data/basic_COVID19_PBMC_metadata_160212.csv",
+                        header=TRUE, stringsAsFactors=FALSE)
+old.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
+                     header=TRUE, stringsAsFactors=FALSE)
+old.meta$sample_id[old.meta$sample_id %in% c("BGCV13_CV0201")] <- "BGCV06_CV0201"
+old.meta$sample_id[old.meta$sample_id %in% c("BGCV06_CV0326")] <- "BGCV13_CV0326"
+
+covid.meta$AgeRange <- covid.meta$Age
+covid.meta$Status_on_day_collection_summary[covid.meta$Status_on_day_collection_summary %in% c("LPS_10hours")] <- "LPS"
+covid.meta$Status_on_day_collection_summary[covid.meta$Status_on_day_collection_summary %in% c("LPS_90mins")] <- "LPS"
+
+covid.meta <- merge(covid.meta[, !colnames(covid.meta) %in% c("Age")], old.meta[, c("sample_id", "patient_id", "Age")],
+                    by='sample_id')
+
+covid.meta$Days_from_onset[covid.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
+covid.meta$Days_from_onset <- as.numeric(covid.meta$Days_from_onset)
+```
+
+## CD4 Tfh Vs. Bcells differential correlation analysis
+
+```{r, fig.height=5.95, fig.width=6.95}
+# compare old and new proportions
+old.bcell.nums <- read.csv("~/Dropbox/COVID19/Data/B_cellnumbers_by_sample_id.csv",
+                           header=TRUE, stringsAsFactors=FALSE)
+old.bcell.nums$sample_id[old.bcell.nums$sample_id %in% c("BGCV06_CV0326")] <- "BGCV13_CV0326"
+old.bcell.nums$sample_id[old.bcell.nums$sample_id %in% c("BGCV13_CV0201")] <- "BGCV06_CV0201"
+old.bcell.melt <- melt(old.bcell.nums, id.vars=c("sample_id"))
+colnames(old.bcell.melt) <- c("sample_id", "variable", "old.count")
+
+new.bcell.df <- read.csv("~/Dropbox/COVID19/Data/Updated/proportions_for_Mike_v2.csv",
+                           header=TRUE, stringsAsFactors=FALSE)
+new.bcell.nums <- dcast(new.bcell.df, sample_id ~ celltype, value.var='total')
+new.bcell.nums[is.na(new.bcell.nums)] <- 0
+new.bcell.melt <- melt(new.bcell.nums, id.vars=c("sample_id"))
+colnames(new.bcell.melt) <- c("sample_id", "variable", "new.count")
+
+bcell.compare <- merge(old.bcell.melt, new.bcell.melt, by=c('sample_id', 'variable'))
+bcell.compare$Switched <- bcell.compare$sample_id %in% c("BGCV13_CV0326", "BGCV06_CV0201")
+ggplot(bcell.compare, aes(x=old.count, y=new.count, colour=Switched)) +
+    geom_point() +
+    theme_cowplot() +
+    scale_colour_manual(values=c("black", "red")) +
+    facet_wrap(~variable, scales="free") +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Bcell_props-compare.png",
+           height=5.95, width=6.95, dpi=90) +
+    NULL
+```
+
+
+
+```{r}
+new.bcell.df <- read.csv("~/Dropbox/COVID19/Data/Updated/proportions_for_Mike_v2.csv",
+                           header=TRUE, stringsAsFactors=FALSE)
+bcell.nums <- dcast(new.bcell.df, sample_id ~ celltype, value.var='total')
+bcell.nums[is.na(bcell.nums)] <- 0
+rownames(bcell.nums) <- bcell.nums$sample_id
+bcell.nums <- bcell.nums[, -1]
+
+# add an aggreated plasmacell column - don't test the isotype-specific plasma cells
+bcell.nums$Plasmacell <- rowSums(bcell.nums[, c("Plasma_cell_IgM", "Plasma_cell_IgA", "Plasma_cell_IgG")])
+bcell.nums <- bcell.nums[intersect(rownames(bcell.nums), names(n.cell.vecc)), ]
+bcell.nums <- bcell.nums[, !colnames(bcell.nums) %in% c("Plasma_cell_IgM", "Plasma_cell_IgA", "Plasma_cell_IgG")]
+
+bcell.nums$sample_id <- rownames(bcell.nums)
+bcell.num.df <- melt(bcell.nums, id.vars='sample_id')
+bcell.num.df$sample_id <- as.character(bcell.num.df$sample_id)
+bcell.num.df$variable <- as.character(bcell.num.df$variable)
+colnames(bcell.num.df) <- c("sample_id", "Celltype", "Freq")
+#bcell.num.df <- bcell.num.df[bcell.num.df$Celltype %in% c("B_cell", "Plasmablast"), ]
+
+bcell.num.cast <- dcast(bcell.num.df, sample_id ~ Celltype, value.var='Freq')
+rownames(bcell.num.cast) <- bcell.num.cast$sample_id
+```
+
+
+
+```{r, warning=FALSE, message=FALSE}
+tcell.freq.tab <- table(tcell.meta$sample_id[!tcell.meta$Sub.Annotation %in% c("NK", "ILCs", "Doublets", "Doublets:Bcell", "Doublets:Platelet")],
+                        tcell.meta$Sub.Annotation[!tcell.meta$Sub.Annotation %in% c("NK", "ILCs", "Doublets", "Doublets:Bcell", "Doublets:Platelet")])
+tcell.freq.tab <- as.data.frame(tcell.freq.tab[!rownames(tcell.freq.tab) %in%
+                                                   c("NK", "ILCs", "Doublets", "Doublets:Bcell", "Doublets:Platelet"), ])
+tcell.nums <- dcast(tcell.freq.tab, Var1 ~ Var2, value.var='Freq')
+
+colnames(tcell.nums) <- c("sample_id", colnames(tcell.nums)[-1])
+
+tcell.bcell.nums <- merge(tcell.nums, bcell.num.cast, by='sample_id')
+rownames(tcell.bcell.nums) <- tcell.bcell.nums$sample_id
+tcell.bcell.nums <- as.matrix(tcell.bcell.nums[, -1])
+
+tcell.bcell.props <- sapply(rownames(tcell.bcell.nums), FUN=function(X) as.numeric(tcell.bcell.nums[X, ]/n.cell.vecc[X]),
+                                        simplify=TRUE)
+rownames(tcell.bcell.props) <- colnames(tcell.bcell.nums)
+```
+
+Cross-compare the T and B cell proportions.
+
+```{r, fig.height=5.95, fig.width=6.95}
+bcell.types <- colnames(bcell.num.cast)[-1]
+tcell.bcell.corr <- cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), ]))
+pheatmap(tcell.bcell.corr, show_rownames=TRUE, show_colnames=TRUE,
+         filename="~/Dropbox/COVID19/Updated_plots/Tcell_Bcell_corr_heatmap.pdf",
+         height=5.95, width=6.95, useDingbats=FALSE)
+
+pheatmap(tcell.bcell.corr, show_rownames=TRUE, show_colnames=TRUE)
+```
+
+How different is this for each severity group, or final outcome?
+
+```{r, fig.height=5.95, fig.width=6.95}
+control.samps <- covid.meta$sample_id[covid.meta$Status_on_day_collection_summary %in% c("Healthy") & covid.meta$Collection_Day %in% c("D0")]
+asymp.samps <- covid.meta$sample_id[covid.meta$Status_on_day_collection_summary %in% c("Asymptomatic") & covid.meta$Collection_Day %in% c("D0")]
+mild.samps <- covid.meta$sample_id[covid.meta$Status_on_day_collection_summary %in% c("Mild") & covid.meta$Collection_Day %in% c("D0")]
+mod.samps <- covid.meta$sample_id[covid.meta$Status_on_day_collection_summary %in% c("Moderate") & covid.meta$Collection_Day %in% c("D0")]
+severe.samps <- covid.meta$sample_id[covid.meta$Status_on_day_collection_summary %in% c("Severe") & covid.meta$Collection_Day %in% c("D0")]
+critical.samps <- covid.meta$sample_id[covid.meta$Status_on_day_collection_summary %in% c("Critical") & covid.meta$Collection_Day %in% c("D0")]
+```
+
+Differential correlation? Should I do this across samples, ranked by severity?  
+
+```{r, warning=FALSE, message=FALSE}
+covid.meta$OrderedSeverity <- factor(covid.meta$Status_on_day_collection_summary,
+                                     levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+samp.order <- covid.meta[order(covid.meta$OrderedSeverity[!is.na(covid.meta$OrderedSeverity)]),]$sample_id
+
+bcell.tcell.dcars <- sapply(c(bcell.types, "CD4.Tfh"), FUN=function(XT) 
+    DCARS(dat=tcell.bcell.props[c(bcell.types, "CD4.Tfh"), intersect(colnames(tcell.bcell.props), samp.order)],
+          xname=XT, yname="CD4.Tfh", plot=FALSE, niter=10000,
+          extractPermutationTestStatistics=FALSE))
+bcell.tcell.dcars.adjust <- p.adjust(bcell.tcell.dcars)
+bcell.tcell.dcars.table <- data.frame("Pvalue"=bcell.tcell.dcars)
+
+kbl(bcell.tcell.dcars.table) %>% kable_paper(full_width=FALSE) %>%
+    save_kable("~/Dropbox/COVID19/Updated_plots/DiffCor_Bcell-Tfh_props.pdf",
+               self_contained=TRUE, keep_tex=TRUE)
+kbl(bcell.tcell.dcars.table) %>% kable_paper(full_width=FALSE) %>%
+    save_kable("~/Dropbox/COVID19/Updated_plots/DiffCor_Bcell-Tfh_props.html",
+               self_contained=TRUE)
+
+kbl(bcell.tcell.dcars.table) %>% kable_paper(full_width=FALSE)
+```
+
+These are the differential correlations between CD4.Tfh cells and B cell proportions across severity groups. Plot the correlation difference 
+between asymptomatic and severe, or plot the correlation across all severity groups for each cell type?
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, width=3.95}
+bcell.cors.list <- list("Healthy"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% control.samps]))["CD4.Tfh", ],
+                        "Asymptomatic"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% asymp.samps]))["CD4.Tfh", ],
+                        "Mild"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% mild.samps]))["CD4.Tfh", ],
+                        "Moderate"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% mod.samps]))["CD4.Tfh", ],
+                        "Severe"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% severe.samps]))["CD4.Tfh", ],
+                        "Critical"=cor(t(tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% critical.samps]))["CD4.Tfh", ])
+
+bcell.cors.df <- do.call(cbind.data.frame, bcell.cors.list)
+bcell.cors.df$CellType <- rownames(bcell.cors.df)
+bcell.cors.melt <- melt(bcell.cors.df, id.vars=c("CellType"))
+bcell.cors.melt$CellType <- as.character(bcell.cors.melt$CellType)
+colnames(bcell.cors.melt) <- c("CellType", "Severity", "Corr")
+bcell.cors.melt$Severity <- factor(bcell.cors.melt$Severity,
+                                   levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+```
+
+Compute bootstrap Pearson correlation coefficients.
+
+```{r, warning=FALSE, message=FALSE}
+se.boot.list <- list()
+n.boot <- 100
+d.groups <- c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+
+for(x in seq_along(d.groups)){
+    x.d <- d.groups[x]
+    x.samps <-  covid.meta$sample_id[covid.meta$Status_on_day_collection_summary %in% x.d & covid.meta$Collection_Day %in% c("D0")]
+    x.dat <- tcell.bcell.props[c(bcell.types, "CD4.Tfh"), colnames(tcell.bcell.props) %in% x.samps]
+    x.size <- floor(0.66 * ncol(x.dat))
+    x.boots <- list()
+    for(i in seq_along(1:n.boot)){
+        x.cor <- cor(t(x.dat[, sample(colnames(x.dat), size=x.size)]))["CD4.Tfh", ]
+        x.boots[[paste0(i)]] <- x.cor
+    }
+    x.cor.df <- do.call(rbind, x.boots)
+    x.se.df <- as.data.frame(apply(x.cor.df, 2, FUN=function(X) sd(X)/sqrt(n.boot)))
+    colnames(x.se.df) <- x.d
+    se.boot.list[[x.d]] <- x.se.df
+}
+
+se.df <- do.call(cbind.data.frame, se.boot.list)
+se.df$CellType <- rownames(se.df)
+se.melt <- melt(se.df, id.vars=c("CellType"))
+colnames(se.melt) <- c("CellType", "Severity", "SE")
+se.melt$Severity <- as.character(se.melt$Severity)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, width=3.95}
+# maybe only plot the significant diff correlations.
+diff.cors <- names(bcell.tcell.dcars)[bcell.tcell.dcars <= 0.1]
+
+bcell.cor.plot <- merge(bcell.cors.melt, se.melt, by=c("CellType", "Severity"))
+
+plasma.cols <- c("#49006a", "#ae017e", "blue")
+names(plasma.cols) <- c("Plasmablast", "Plasmacell", "B_switched_memory")
+
+ggplot(bcell.cor.plot[bcell.cor.plot$CellType %in% diff.cors, ], 
+       aes(x=Severity, y=Corr, fill=CellType, colour=CellType, group=CellType)) +
+    geom_hline(yintercept=0, lty=2, colour='grey80', alpha=0.75) +
+    geom_errorbar(aes(ymin=Corr-SE, ymax=Corr+SE), position=position_dodge(width=0.75)) +
+    geom_point(shape=21, size=3, position=position_dodge(width=0.75)) +
+    scale_fill_manual(values=plasma.cols) +
+    scale_colour_manual(values=plasma.cols) +
+    theme_cowplot() +
+    theme(axis.text.x=element_text(size=14, angle=90, vjust=0.5, hjust=1)) +
+    labs(x="Severity", y="Pearson\nCorrelation") +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tfh_diff_corr.pdf",
+           height=2.95, width=3.95, useDingbats=FALSE) +
+    NULL
+    
+```
+
+
+

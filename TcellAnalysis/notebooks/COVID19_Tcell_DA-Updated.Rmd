@@ -1,0 +1,438 @@
+---
+title: "COVID19: T cell differential abundance - Updated"
+output: html_notebook
+---
+
+Performing differential abundance testing using a negative binomial GLM. Cell counts per donor sample are used as input, and the total number of cells 
+captured (after QC) are used to normalize the model counts.
+
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(ggsci)
+library(cowplot)
+library(RColorBrewer)
+library(reshape2)
+library(colorspace)
+library(ggthemes)
+library(edgeR)
+library(scales)
+library(ggrepel)
+library(dplyr)
+```
+
+
+```{r}
+covid.meta <- read.csv("~/Dropbox/COVID19/Data/basic_COVID19_PBMC_metadata_160212.csv",
+                        header=TRUE, stringsAsFactors=FALSE)
+old.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
+                     header=TRUE, stringsAsFactors=FALSE)
+old.meta$sample_id[old.meta$sample_id %in% c("BGCV13_CV0201")] <- "BGCV06_CV0201"
+old.meta$sample_id[old.meta$sample_id %in% c("BGCV06_CV0326")] <- "BGCV13_CV0326"
+
+covid.meta$AgeRange <- covid.meta$Age
+covid.meta$Status_on_day_collection_summary[covid.meta$Status_on_day_collection_summary %in% c("LPS_10hours")] <- "LPS"
+covid.meta$Status_on_day_collection_summary[covid.meta$Status_on_day_collection_summary %in% c("LPS_90mins")] <- "LPS"
+
+covid.meta <- merge(covid.meta[, !colnames(covid.meta) %in% c("Age")], old.meta[, c("sample_id", "patient_id", "Age")],
+                    by='sample_id')
+
+covid.meta$Days_from_onset[covid.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
+covid.meta$Days_from_onset <- as.numeric(covid.meta$Days_from_onset)
+
+cell.freq.merge <- read.table("~/Dropbox/COVID19/Data/Updated/Tcell_proportions.tsv",
+                              sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+cell.freq.merge <- cell.freq.merge[!cell.freq.merge$Status_on_day_collection_summary %in% c("Non_covid"), ]
+cell.freq.merge <- cell.freq.merge[!cell.freq.merge$patient_id %in% c("CV0198"), ]
+cell.freq.merge <- cell.freq.merge[!cell.freq.merge$sample_id %in% c("BGCV01_CV0902"), ]
+# remove doublets, etc
+cell.freq.merge <- cell.freq.merge[!cell.freq.merge$CellType %in% c("Doublets:Bcell", "ILC1_3", "ILC2", "Doublets:Platelet", "Doublets", "NK", "ILCs"), ]
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+all.meta <- read.table("~/Dropbox/COVID19/Data/Updated/COVID19_scMeta-data.tsv",
+                       sep="\t", header=TRUE, stringsAsFactors=FALSE)
+rownames(all.meta) <- all.meta$CellID
+
+# remove BGCV01_CV0209 and CV0198
+all.meta <- all.meta[!all.meta$sample_id %in% c("BGCV01_CV0902"), ]
+all.meta <- all.meta[!all.meta$patient_id %in% c("CV0198"), ]
+
+all.meta$Status_on_day_collection_summary[all.meta$Status_on_day_collection_summary %in% c("LPS_90mins", "LPS_10hours")] <- "LPS"
+
+all.meta$Days_from_onset[all.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
+all.meta$Days_from_onset <- as.numeric(all.meta$Days_from_onset)
+
+n.cell.vecc <- table(all.meta$sample_id)
+```
+
+
+```{r}
+tcell.annots <- read.table("~/Dropbox/COVID19/Data/Updated//Tcell_annotations_ext.tsv",
+                           sep="\t", header=TRUE, stringsAsFactors=FALSE)
+tcell.df.merge <- merge(tcell.annots, all.meta, by='CellID')
+```
+
+## Cluster-baed DA analysis: Infected vs. controls
+
+```{r}
+# set up testing model
+rownames(covid.meta) <- covid.meta$sample_id
+tcell.meta <- covid.meta[!covid.meta$Status_on_day_collection_summary %in% c("Non_covid", "LPS"), ]
+tcell.meta$OrderedSeverity <- ordered(tcell.meta$Status_on_day_collection_summary,
+                                      levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+tcell.meta$Infected <- ordered(tcell.meta$Status,
+                               levels=c("Healthy", "Covid"))
+
+tcell.model <- model.matrix(~ Sex + Age + Infected, data=tcell.meta[tcell.meta$Collection_Day %in% c("D0"), ])
+
+# count cells
+cell.freq.tab <- t(table(tcell.df.merge$sample_id[tcell.df.merge$Collection_Day %in% c("D0") &
+                                                        !tcell.df.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid")],
+                         tcell.df.merge$Sub.Annotation[tcell.df.merge$Collection_Day %in% c("D0") &
+                                                        !tcell.df.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid")]))
+cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublets:Bcell", "ILC1_3", "ILC2", "Doublets:Platelet", "Doublets", "NK", "ILCs"), ]
+test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
+cell.freq.tab <- cell.freq.tab[, test.samps]
+tcell.model <- tcell.model[colnames(cell.freq.tab), ]
+
+tcell.dge <- DGEList(cell.freq.tab, lib.size=log(n.cell.vecc[test.samps]))
+
+#estimate dispersions
+tcell.dge <- estimateDisp(tcell.dge, design=tcell.model)
+tcell.linear.fit <- glmQLFit(tcell.dge, tcell.model, robust=TRUE)
+tcell.res <- as.data.frame(topTags(glmQLFTest(tcell.linear.fit, coef=4), sort.by='none', n=Inf))
+tcell.res$CellType <- rownames(tcell.res)
+
+tcell.res$Sig <- as.numeric(tcell.res$FDR < 0.1)
+tcell.res$Diff <- sign(tcell.res$logFC)
+tcell.res$Diff[tcell.res$FDR > 0.1] <- 0
+table(tcell.res$Diff)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=4.15}
+mx.lfc <- max(abs(tcell.res$logFC))
+eps <- mx.lfc * 0.05
+
+infect.resplot.labels <- tcell.res$CellType
+infect.resplot.labels[tcell.res$Sig == 0] <- ""
+
+ggplot(tcell.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
+    geom_point(shape=21, size=4) +
+    theme_cowplot() +
+    scale_fill_manual(values=c("black", "red")) +
+    scale_x_continuous(limits=c(-mx.lfc - eps, mx.lfc + eps), oob=squish) +
+    guides(fill=guide_legend(title="FDR < 0.1")) +
+    geom_text_repel(aes(label=infect.resplot.labels),
+                     fill='white') +
+    labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcell_edgeR_volcano_caseVscontrol-linear.pdf",
+           height=2.95, width=4.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+## Cluster-baed DA analysis: COVID19 severity
+
+```{r}
+# set up testing model
+rownames(covid.meta) <- covid.meta$sample_id
+tcell.meta <- covid.meta[!covid.meta$Status_on_day_collection_summary %in% c("Non_covid", "LPS", "Healthy"), ]
+tcell.meta$OrderedSeverity <- ordered(tcell.meta$Status_on_day_collection_summary,
+                                      levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+tcell.model <- model.matrix(~ Sex + Age + OrderedSeverity, data=tcell.meta[tcell.meta$Collection_Day %in% c("D0"), ])
+
+# count cells
+cell.freq.tab <- t(table(tcell.df.merge$sample_id[tcell.df.merge$Collection_Day %in% c("D0") &
+                                                        !tcell.df.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy")],
+                         tcell.df.merge$Sub.Annotation[tcell.df.merge$Collection_Day %in% c("D0") &
+                                                        !tcell.df.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy")]))
+cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublets:Bcell", "ILC1_3", "ILC2", "Doublets:Platelet", "Doublets", "NK", "ILCs"), ]
+test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
+cell.freq.tab <- cell.freq.tab[, test.samps]
+tcell.model <- tcell.model[colnames(cell.freq.tab), ]
+
+tcell.dge <- DGEList(cell.freq.tab, lib.size=log(n.cell.vecc[test.samps]))
+
+#estimate dispersions
+tcell.dge <- estimateDisp(tcell.dge, design=tcell.model)
+tcell.linear.fit <- glmQLFit(tcell.dge, tcell.model, robust=TRUE)
+tcell.res <- as.data.frame(topTags(glmQLFTest(tcell.linear.fit, coef=4), sort.by='none', n=Inf))
+tcell.res$CellType <- rownames(tcell.res)
+
+tcell.res$Sig <- as.numeric(tcell.res$FDR < 0.1)
+tcell.res$Diff <- sign(tcell.res$logFC)
+tcell.res$Diff[tcell.res$FDR > 0.1] <- 0
+table(tcell.res$Diff)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=4.15}
+mx.lfc <- max(abs(tcell.res$logFC))
+eps <- mx.lfc * 0.05
+
+tcell.resplot.labels <- tcell.res$CellType
+tcell.resplot.labels[tcell.res$Sig == 0] <- ""
+
+ggplot(tcell.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
+    geom_point(shape=21, size=4) +
+    theme_cowplot() +
+    scale_fill_manual(values=c("black", "red")) +
+    scale_x_continuous(limits=c(-mx.lfc - eps, mx.lfc + eps), oob=squish) +
+    guides(fill=guide_legend(title="FDR < 0.1")) +
+    geom_text_repel(aes(label=tcell.resplot.labels),
+                     fill='white') +
+    labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcell_edgeR_volcano_caseOnly-linear.pdf",
+           height=2.95, width=4.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+Quadratic changes.
+
+
+```{r}
+tcell.quad.res <- as.data.frame(topTags(glmQLFTest(tcell.linear.fit, coef=5), sort.by='none', n=Inf))
+tcell.quad.res$CellType <- rownames(tcell.quad.res)
+
+tcell.quad.res$Sig <- as.numeric(tcell.quad.res$FDR < 0.1)
+tcell.quad.res$Diff <- sign(tcell.quad.res$logFC)
+tcell.quad.res$Diff[tcell.quad.res$FDR > 0.1] <- 0
+table(tcell.quad.res$Diff)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=4.15}
+mx.lfc <- max(abs(tcell.quad.res$logFC))
+eps <- mx.lfc * 0.05
+
+tcell.quad.resplot.labels <- tcell.quad.res$CellType
+tcell.quad.resplot.labels[tcell.quad.res$Sig == 0] <- ""
+
+ggplot(tcell.quad.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
+    geom_point(shape=21, size=4) +
+    theme_cowplot() +
+    scale_fill_manual(values=c("black", "red")) +
+    scale_x_continuous(limits=c(-mx.lfc - eps, mx.lfc + eps), oob=squish) +
+    guides(fill=guide_legend(title="FDR < 0.1")) +
+    geom_text_repel(aes(label=tcell.quad.resplot.labels),
+                    force=10,
+                    fill='white') +
+    labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcell_edgeR_volcano_caseOnly-quadratic.pdf",
+           height=2.95, width=4.15, useDingbats=FALSE) +
+    NULL
+```
+
+Show a plot of just the DA clusters.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=9.95}
+da.clusters <- setdiff(unique(c(tcell.resplot.labels, tcell.quad.resplot.labels)), "CD4.Th17")
+
+group.cols <- c("#2ca02c", "#1f77b4", "#9467bd", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#252525")
+names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+
+# censor outliers to the 95th quantile for each cell type.
+plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                           !cell.freq.merge$Status_on_day_collection_summary %in% c("LPS") &
+                           cell.freq.merge$CellType %in% da.clusters, ]
+
+q95.ct <- sapply(unique(plotting.df$CellType),
+                 FUN=function(x) quantile(plotting.df[plotting.df$CellType %in% x, ]$Freq, c(0.05, 0.95), na.rm=TRUE)[2])
+q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacement=""), "Q95"=q95.ct)
+
+plotting.df <- merge(plotting.df, q95.df, by='CellType')
+plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
+
+plotting.df$Status_on_day_collection_summary <- ordered(plotting.df$Status_on_day_collection_summary,
+                                         levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+ggplot(plotting.df[!plotting.df$Status_on_day_collection_summary %in% c("Healthy"), ],
+       aes(x=Status_on_day_collection_summary, y=Freq, fill=Status_on_day_collection_summary)) +
+    geom_boxplot(outlier.size=0.5, coef=1.5) +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y", nrow=3) +
+    scale_fill_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(aspect=1/1.3,
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          legend.key.size=unit(0.4, "cm"),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=12)) +
+    labs(x="Severity", y="Proportion") +
+    guides(fill=guide_legend(title="Severity")) +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcells_proportions-DA_CasesOnly-boxplot.pdf",
+           height=4.15, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+Also show the equivalent plot of healthy vs. infected.
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=9.95}
+infect.da.clusters <- setdiff(unique(c(infect.resplot.labels)), "CD4.Th17")
+
+group.cols <- c("#2ca02c", "#252525")
+names(group.cols) <- c("Healthy", "COVID-19")
+
+# censor outliers to the 95th quantile for each cell type.
+plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                           !cell.freq.merge$Status_on_day_collection_summary %in% c("LPS") &
+                           cell.freq.merge$CellType %in% infect.da.clusters, ]
+
+q95.ct <- sapply(unique(plotting.df$CellType),
+                 FUN=function(x) quantile(plotting.df[plotting.df$CellType %in% x, ]$Freq, c(0.05, 0.95), na.rm=TRUE)[2])
+q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacement=""), "Q95"=q95.ct)
+
+plotting.df <- merge(plotting.df, q95.df, by='CellType')
+plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
+
+plotting.df$Status <- factor(plotting.df$Status,
+                             levels=c("Healthy", "Covid"),
+                             labels=c("Healthy", "COVID-19"))
+
+ggplot(plotting.df,
+       aes(x=Status, y=Freq, fill=Status)) +
+    geom_boxplot(outlier.size=0.5, coef=1.5) +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y", nrow=3) +
+    scale_fill_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(aspect=1/1.3,
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          legend.key.size=unit(0.4, "cm"),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=12)) +
+    labs(x="", y="Proportion") +
+    guides(fill=guide_legend(title="Status")) +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcells_proportions-DA_CaseVsControls-boxplot.pdf",
+           height=4.15, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+## Cluster-based DA analysis: days since symptom onset
+
+```{r}
+# set up testing model
+rownames(covid.meta) <- covid.meta$sample_id
+tcell.meta <- covid.meta[!covid.meta$Status_on_day_collection_summary %in% c("Non_covid", "LPS", "Healthy"), ]
+tcell.meta$OrderedSeverity <- ordered(tcell.meta$Status_on_day_collection_summary,
+                                      levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+tcell.meta <- tcell.meta[tcell.meta$Status_on_day_collection_summary %in% c("Mild", "Moderate", "Severe", "Critical"), ]
+
+tcell.meta$Days_from_onset[tcell.meta$Days_from_onset %in% c("Not_known")] <- NA
+tcell.meta$Days_from_onset <- as.numeric(tcell.meta$Days_from_onset)
+tcell.meta <- tcell.meta[!is.na(tcell.meta$Days_from_onset), ]
+
+
+tcell.model <- model.matrix(~ Sex + Age + Days_from_onset, 
+                            data=tcell.meta[tcell.meta$Collection_Day %in% c("D0"), ])
+
+# count cells
+cell.freq.tab <- t(table(tcell.df.merge$sample_id[tcell.df.merge$Collection_Day %in% c("D0") &
+                                                      !is.na(tcell.df.merge$Days_from_onset) &
+                                                        !tcell.df.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")],
+                         tcell.df.merge$Sub.Annotation[tcell.df.merge$Collection_Day %in% c("D0") &
+                                                           !is.na(tcell.df.merge$Days_from_onset) &
+                                                        !tcell.df.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")]))
+cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublets:Bcell", "ILC1_3", "ILC2", "Doublets:Platelet", "Doublets", "NK", "ILCs"), ]
+test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
+cell.freq.tab <- cell.freq.tab[, test.samps]
+tcell.model <- tcell.model[colnames(cell.freq.tab), ]
+
+tcell.dge <- DGEList(cell.freq.tab, lib.size=log(n.cell.vecc[test.samps]))
+
+#estimate dispersions
+tcell.dge <- estimateDisp(tcell.dge, design=tcell.model)
+tcell.linear.fit <- glmQLFit(tcell.dge, tcell.model, robust=TRUE)
+tcell.res <- as.data.frame(topTags(glmQLFTest(tcell.linear.fit, coef=4), sort.by='none', n=Inf))
+tcell.res$CellType <- rownames(tcell.res)
+
+tcell.res$Sig <- as.numeric(tcell.res$FDR < 0.1)
+tcell.res$Diff <- sign(tcell.res$logFC)
+tcell.res$Diff[tcell.res$FDR > 0.1] <- 0
+table(tcell.res$Diff)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=2.95, fig.width=4.15}
+mx.lfc <- max(abs(tcell.res$logFC))
+eps <- mx.lfc * 0.05
+
+tcell.resplot.labels <- tcell.res$CellType
+tcell.resplot.labels[tcell.res$Sig == 0] <- ""
+
+ggplot(tcell.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
+    geom_point(shape=21, size=4) +
+    theme_cowplot() +
+    scale_fill_manual(values=c("black", "red")) +
+    scale_x_continuous(limits=c(-mx.lfc - eps, mx.lfc + eps), oob=squish) +
+    guides(fill=guide_legend(title="FDR < 0.1")) +
+    geom_text_repel(aes(label=tcell.resplot.labels),
+                     fill='white') +
+    labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcell_edgeR_volcano_daysOnset-linear.pdf",
+           height=2.95, width=4.15, useDingbats=FALSE) +
+    NULL
+```
+
+
+Show a plot of just the DA clusters.
+
+```{r, warning=FALSE, message=FALSE, fig.height=4.15, fig.width=9.95}
+da.clusters <- setdiff(unique(c(tcell.resplot.labels, tcell.quad.resplot.labels)), "CD4.Th17")
+
+group.cols <- c("#2ca02c", "#1f77b4", "#9467bd", "#fed976", "#fd8d3c", "#e31a1c", "#800026", "#252525")
+names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical")
+
+# censor outliers to the 95th quantile for each cell type.
+plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
+                                   !cell.freq.merge$Status_on_day_collection_summary %in% c("LPS") &
+                                   !is.na(cell.freq.merge$Days_from_onset) &
+                                   cell.freq.merge$CellType %in% da.clusters, ]
+
+q95.ct <- sapply(unique(plotting.df$CellType),
+                 FUN=function(x) quantile(plotting.df[plotting.df$CellType %in% x, ]$Freq, c(0.05, 0.95), na.rm=TRUE)[2])
+q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacement=""), "Q95"=q95.ct)
+
+plotting.df <- merge(plotting.df, q95.df, by='CellType')
+plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
+
+plotting.df$Status_on_day_collection_summary <- ordered(plotting.df$Status_on_day_collection_summary,
+                                         levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
+
+ggplot(plotting.df[!plotting.df$Status_on_day_collection_summary %in% c("Healthy", "Asymptomatic"), ],
+       aes(x=Days_from_onset, y=Freq, colour=Status_on_day_collection_summary)) +
+    #geom_boxplot(outlier.size=0.5, coef=1.5) +
+    geom_point(size=1) +
+    #stat_smooth(method="lm") +
+    theme_cowplot() +
+    facet_wrap(~CellType, scales="free_y", nrow=3) +
+    scale_colour_manual(values=group.cols) +
+    expand_limits(y=c(0)) +
+    theme(aspect=1/1.3,
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          legend.key.size=unit(0.4, "cm"),
+          strip.background=element_rect(fill='white', colour='white'),
+          strip.text=element_text(size=12)) +
+    labs(x="Symptom duration", y="Proportion") +
+    guides(fill=guide_legend(title="Symptom duration")) +
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcells_proportions-DA_daysOnset-points.pdf",
+           height=4.15, width=9.95, useDingbats=FALSE) +
+    NULL
+```
+
+
+

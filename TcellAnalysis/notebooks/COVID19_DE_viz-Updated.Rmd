@@ -13,6 +13,7 @@ library(scales)
 library(enrichR)
 library(ggrepel)
 library(cowplot)
+library(RColorBrewer)
 ```
 
 
@@ -21,11 +22,11 @@ library(cowplot)
 Testing for a linear trend across disease severity, from healthy through to critical.
 
 ```{r}
-dge.files <- list.files("~/Dropbox/COVID19/Data/DEResults.dir/", pattern="\\.L\\.csv")
+dge.files <- list.files("~/Dropbox/COVID19/Data/Updated/DEResults.dir/", pattern="\\.L\\.csv")
 linear.dge.list <- list()
 
 for(x in seq_along(dge.files)){
-    x.csv <- read.csv(paste0("~/Dropbox/COVID19/Data/DEResults.dir/", dge.files[x]),
+    x.csv <- read.csv(paste0("~/Dropbox/COVID19/Data/Updated/DEResults.dir/", dge.files[x]),
                       header=TRUE, stringsAsFactors=FALSE)
     x.annot <- gsub(dge.files[x], pattern="DE_(\\S*)_Severity\\.L\\.csv", replacement="\\1")
     x.csv$Sub.Annotation <- x.annot
@@ -46,7 +47,7 @@ There are variable numbers of gene DE across categories, but generally quite a s
 de.genes.all <- unique(linear.dge.df$X[linear.dge.df$FDR < 0.01])
 
 write.table(de.genes.all,
-            file="~/Dropbox/COVID19/Data/DEResults.dir/ALL_linear_DEgenes.tsv",
+            file="~/Dropbox/COVID19/Data/Updated/DEResults.dir/ALL_linear_DEgenes.tsv",
             quote=FALSE, row.names=FALSE, sep="\t")
 ```
 
@@ -55,7 +56,7 @@ write.table(de.genes.all,
 
 ```{r}
 enrich.dbs <- c("Transcription_Factor_PPIs", "MSigDB_Computational", "MSigDB_Hallmark_2020", 
-                "UK_Biobank_GWAS_v1", "KEGG_2019_Human", "GO_Biological_Process_2018")
+                "KEGG_2019_Human", "GO_Biological_Process_2018")
 ```
 
 
@@ -68,7 +69,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.CM"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd4.cm.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.CM-linear_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD4.CM-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -107,7 +108,7 @@ ggplot(cd4.msigdb[cd4.msigdb$P.value < 0.01, ],
     geom_point() +
     coord_flip() +
     labs(x="Pathway", y="Odds Rato") +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.CM-linear_MSigDB_enriched.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD4.CM-linear_MSigDB_enriched.pdf",
            height=4.15, width=4.15, useDingbats=FALSE) +
     theme_cowplot()
 ```
@@ -146,7 +147,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Naive"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd4.naive.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Naive-linear_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD4.Naive-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -185,7 +186,7 @@ ggplot(cd4.naive.msigdb[cd4.naive.msigdb$P.value < 0.01, ],
     geom_point() +
     coord_flip() +
     labs(x="Pathway", y="Odds Rato") +
-        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Naive-linear_MSigDB_enriched.pdf",
+        ggsave("~/Dropbox/COVID19/Updated_plots/CD4.Naive-linear_MSigDB_enriched.pdf",
            height=4.15, width=4.15, useDingbats=FALSE) +
     theme_cowplot()
 ```
@@ -224,7 +225,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.Naive"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd8.naive.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.Naive-linear_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD8.Naive-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -300,7 +301,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.EM"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd8.em.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.EM-linear_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD8.EM-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -383,7 +384,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD8.TE"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd8.te.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.TE-linear_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD8.TE-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -443,6 +444,7 @@ if(nrow(cd8.te.tfppi.down) > 0){
 cd8.te.tfppi <- do.call(rbind.data.frame, list(cd8.te.tfppi.up, cd8.te.tfppi.down))
 cd8.te.tfppi$logP <- -log10(cd8.te.tfppi$P.value)
 cd8.te.tfppi$logP[cd8.te.tfppi$Dir %in% c("Down")] <- -1 * cd8.te.tfppi$logP[cd8.te.tfppi$Dir %in% c("Down")]
+cd8.te.tfppi$Sub
 
 ggplot(cd8.te.tfppi[cd8.te.tfppi$P.value < 0.01, ],
        aes(x=reorder(Term, logP), y=logP)) +
@@ -466,7 +468,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=tfh.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Tfh-linear_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD4.Tfh-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -493,9 +495,13 @@ tfh.msigdb.up <- tfh.enriched.up[["MSigDB_Hallmark_2020"]]
 tfh.msigdb.up$Dir <- "Up"
 
 tfh.msigdb.down <- tfh.enriched.down[["MSigDB_Hallmark_2020"]]
+if(!is.null(tfh.msigdb.down)){
 tfh.msigdb.down$Dir <- "Down"
 
 tfh.msigdb <- do.call(rbind.data.frame, list(tfh.msigdb.up, tfh.msigdb.down))
+} else{
+    tfh.msigdb <- do.call(rbind.data.frame, list(tfh.msigdb.up))
+}
 tfh.msigdb$logP <- -log10(tfh.msigdb$P.value)
 tfh.msigdb$logP[tfh.msigdb$Dir %in% c("Down")] <- -1 * tfh.msigdb$logP[tfh.msigdb$Dir %in% c("Down")]
 
@@ -514,7 +520,13 @@ tfh.tfppi.up <- tfh.enriched.up[["Transcription_Factor_PPIs"]]
 tfh.tfppi.up$Dir <- "Up"
 
 tfh.tfppi.down <- tfh.enriched.down[["Transcription_Factor_PPIs"]]
-tfh.tfppi.down$Dir <- "Down"
+if(!is.null(tfh.tfppi.down)){
+    tfh.tfppi.down$Dir <- "Down"
+    tfh.tfppi <- do.call(rbind.data.frame, list(tfh.tfppi.up, tfh.tfppi.down))
+} else{
+    tfh.tfppi <- do.call(rbind.data.frame, list(tfh.tfppi.up))
+}
+
 
 tfh.tfppi <- do.call(rbind.data.frame, list(tfh.tfppi.up, tfh.tfppi.down))
 tfh.tfppi$logP <- -log10(tfh.tfppi$P.value)
@@ -542,7 +554,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("gdT"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=gdt.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/gdT-linear_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/gdT-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -566,28 +578,40 @@ gdt.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("
 
 ```{r, fig.height=4.15, fig.width=4.15}
 gdt.msigdb.up <- gdt.enriched.up[["MSigDB_Hallmark_2020"]]
-gdt.msigdb.up$Dir <- "Up"
+if(!is.null(gdt.msigdb.up)){
+    gdt.msigdb.up$Dir <- "Up"    
+}
 
 gdt.msigdb.down <- gdt.enriched.down[["MSigDB_Hallmark_2020"]]
 if(!is.null(gdt.msigdb.down)){
     gdt.msigdb.down$Dir <- "Down"
+}
 
+if(!is.null(gdt.msigdb.up) & !is.null(gdt.msigdb.down)){
     gdt.msigdb <- do.call(rbind.data.frame, list(gdt.msigdb.up, gdt.msigdb.down))
     gdt.msigdb$logP <- -log10(gdt.msigdb$P.value)
     gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")] <- -1 * gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")]
-} else{
+} else if(!is.null(gdt.msigdb.up) & is.null(gdt.msigdb.down)){
     gdt.msigdb <- do.call(rbind.data.frame, list(gdt.msigdb.up))
     gdt.msigdb$logP <- -log10(gdt.msigdb$P.value)
     gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")] <- -1 * gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")]
+} else if(is.null(gdt.msigdb.up) & !is.null(gdt.msigdb.down)){
+    gdt.msigdb <- do.call(rbind.data.frame, list(gdt.msigdb.down))
+    gdt.msigdb$logP <- -log10(gdt.msigdb$P.value)
+    gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")] <- -1 * gdt.msigdb$logP[gdt.msigdb$Dir %in% c("Down")]
+} else{
+    gdt.msigdb <- NULL
 }
 
-ggplot(gdt.msigdb[gdt.msigdb$P.value < 0.01, ],
+if(!is.null(gdt.msigdb)){
+    ggplot(gdt.msigdb[gdt.msigdb$P.value < 0.01, ],
        aes(x=reorder(Term, logP), y=logP)) +
     geom_hline(yintercept=0, lty=2, colour='grey80') +
     geom_point() +
     coord_flip() +
     labs(x="Pathway", y="Odds Rato") +
     theme_cowplot()
+}
 ```
 
 
@@ -631,7 +655,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("MAIT"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=mait.labels)) +
-        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/MAIT-linear_volcano.pdf",
+        ggsave("~/Dropbox/COVID19/Updated_plots/MAIT-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -655,15 +679,22 @@ mait.enriched.down <- enrichr(linear.dge.df[linear.dge.df$Sub.Annotation %in% c(
 
 ```{r, fig.height=4.15, fig.width=4.15}
 mait.msigdb.up <- mait.enriched.up[["MSigDB_Hallmark_2020"]]
-mait.msigdb.up$Dir <- "Up"
+if(!is.null(mait.msigdb.up)){
+    mait.msigdb.up$Dir <- "Up"
+}
 
 mait.msigdb.down <- mait.enriched.down[["MSigDB_Hallmark_2020"]]
-if(nrow(mait.msigdb.down) > 0){
+if(!is.null(mait.msigdb.down)){
     mait.msigdb.down$Dir <- "Down"
-    mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.up, mait.msigdb.down))
-} else{
-    mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.up))
 }
+if(!is.null(mait.msigdb.down) & !is.null(mait.msigdb.up)){
+    mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.up, mait.msigdb.down))
+} else if(is.null(mait.msigdb.down) & !is.null(mait.msigdb.up)){
+    mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.up))
+} else if(!is.null(mait.msigdb.down) & is.null(mait.msigdb.up)){
+    mait.msigdb <- do.call(rbind.data.frame, list(mait.msigdb.down))
+}
+
 mait.msigdb$logP <- -log10(mait.msigdb$P.value)
 mait.msigdb$logP[mait.msigdb$Dir %in% c("Down")] <- -1 * mait.msigdb$logP[mait.msigdb$Dir %in% c("Down")]
 
@@ -679,15 +710,23 @@ ggplot(mait.msigdb[mait.msigdb$P.value < 0.01, ],
 
 ```{r, fig.height=4.15, fig.width=4.15}
 mait.tfppi.up <- mait.enriched.up[["Transcription_Factor_PPIs"]]
-mait.tfppi.up$Dir <- "Up"
+if(!is.null(mait.tfppi.up)){
+    mait.tfppi.up$Dir <- "Up"
+}
 
 mait.tfppi.down <- mait.enriched.down[["Transcription_Factor_PPIs"]]
-if(nrow(mait.tfppi.down) > 0){
+if(!is.null(mait.tfppi.down)){
     mait.tfppi.down$Dir <- "Down"
-    mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.up, mait.tfppi.down))
-} else{
-    mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.up))
 }
+
+if(!is.null(mait.tfppi.up) & !is.null(mait.tfppi.down)){
+    mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.up, mait.tfppi.down))
+} else if(!is.null(mait.tfppi.up) & is.null(mait.tfppi.down)){
+    mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.up))
+} else if(is.null(mait.tfppi.up) & !is.null(mait.tfppi.down)){
+    mait.tfppi <- do.call(rbind.data.frame, list(mait.tfppi.down))
+}
+
 mait.tfppi$logP <- -log10(mait.tfppi$P.value)
 mait.tfppi$logP[mait.tfppi$Dir %in% c("Down")] <- -1 * mait.tfppi$logP[mait.tfppi$Dir %in% c("Down")]
 
@@ -713,7 +752,7 @@ ggplot(linear.dge.df[linear.dge.df$Sub.Annotation %in% c("Treg"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=treg.labels)) +
-        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Treg-linear_volcano.pdf",
+        ggsave("~/Dropbox/COVID19/Updated_plots/Treg-linear_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -790,12 +829,12 @@ cd8.naive.msigdb$Sub.Annotation <- "CD8.Naive"
 cd8.em.msigdb$Sub.Annotation <- "CD8.EM"
 cd8.te.msigdb$Sub.Annotation <- "CD8.TE"
 tfh.msigdb$Sub.Annotation <- "CD4.Tfh"
-treg.msigdb$Sub.Annotation <- "Treg"
+# treg.msigdb$Sub.Annotation <- "Treg"
 mait.msigdb$Sub.Annotation <- "MAIT"
-gdt.msigdb$Sub.Annotation <- "gdT"
+# gdt.msigdb$Sub.Annotation <- "gdT"
 
 msigdb.linear.enrichments <- list(cd4.msigdb, cd4.naive.msigdb, cd8.naive.msigdb, cd8.em.msigdb, cd8.te.msigdb,
-                                  tfh.msigdb, treg.msigdb, mait.msigdb, gdt.msigdb)
+                                  tfh.msigdb, mait.msigdb)
 
 msigdb.linear.enrich.df <- do.call(rbind.data.frame,
                                    msigdb.linear.enrichments)
@@ -817,7 +856,7 @@ names(cell.cols) <- cell.order
 ```{r, fig.height=5.95, fig.width=6.95}
 ggplot(msigdb.linear.enrich.df[msigdb.linear.enrich.df$P.value < 0.01, ],
        aes(x=reorder(Term, logP), y=logP, colour=Sub.Annotation)) +
-    #geom_hline(yintercept=0, lty=2, colour='grey80') +
+    geom_hline(yintercept=0, lty=2, colour='grey80') +
     geom_point(size=3.5, shape=18) +
     scale_colour_manual(values=cell.cols) +
     #facet_wrap(~Term, scales="free_y", ncol=1) +
@@ -828,7 +867,7 @@ ggplot(msigdb.linear.enrich.df[msigdb.linear.enrich.df$P.value < 0.01, ],
     theme(panel.spacing=unit(0, "lines"),
           strip.text=element_blank(),
           strip.background=element_blank()) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Tcell-linear_MSigDB_enriched.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/Tcell-linear_MSigDB_enriched.pdf",
            height=5.95, width=6.95, useDingbats=FALSE) +
     NULL
 ```
@@ -840,14 +879,14 @@ cd4.tfppi$Sub.Annotation <- "CD4.CM"
 cd4.naive.tfppi$Sub.Annotation <- "CD4.Naive"
 cd8.naive.tfppi$Sub.Annotation <- "CD8.Naive"
 cd8.em.tfppi$Sub.Annotation <- "CD8.EM"
-#cd8.te.tfppi$Sub.Annotation <- "CD8.TE"
+cd8.te.tfppi$Sub.Annotation <- "CD8.TE"
 tfh.tfppi$Sub.Annotation <- "CD4.Tfh"
-treg.tfppi$Sub.Annotation <- "Treg"
+# treg.tfppi$Sub.Annotation <- "Treg"
 mait.tfppi$Sub.Annotation <- "MAIT"
-gdt.tfppi$Sub.Annotation <- "gdT"
+# gdt.tfppi$Sub.Annotation <- "gdT"
 
 tfppi.linear.enrichments <- list(cd4.tfppi, cd4.naive.tfppi, cd8.naive.tfppi, cd8.em.tfppi, cd8.te.tfppi,
-                                  tfh.tfppi, treg.tfppi, mait.tfppi, gdt.tfppi)
+                                  tfh.tfppi,  mait.tfppi)
 
 tfppi.linear.enrich.df <- do.call(rbind.data.frame,
                                    tfppi.linear.enrichments)
@@ -868,7 +907,7 @@ ggplot(tfppi.linear.enrich.df[tfppi.linear.enrich.df$P.value < 0.01, ],
     theme(panel.spacing=unit(0, "lines"),
           strip.text=element_blank(),
           strip.background=element_blank()) +
-ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Tcell-linear_TFPPI_enriched.pdf",
+ggsave("~/Dropbox/COVID19/Updated_plots/Tcell-linear_TFPPI_enriched.pdf",
            height=5.95, width=6.95, useDingbats=FALSE) +
     NULL
 ```
@@ -880,11 +919,11 @@ ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Tcell-linear_TFPPI_en
 As the model above, but testing for a linear trend across disease severity, from healthy through to critical.
 
 ```{r}
-dge.files <- list.files("~/Dropbox/COVID19/Data/DEResults.dir/", pattern="\\.Q\\.csv")
+dge.files <- list.files("~/Dropbox/COVID19/Data/Updated/DEResults.dir/", pattern="\\.Q\\.csv")
 quadratic.dge.list <- list()
 
 for(x in seq_along(dge.files)){
-    x.csv <- read.csv(paste0("~/Dropbox/COVID19/Data/DEResults.dir/", dge.files[x]),
+    x.csv <- read.csv(paste0("~/Dropbox/COVID19/Data/Updated/DEResults.dir/", dge.files[x]),
                       header=TRUE, stringsAsFactors=FALSE)
     x.annot <- gsub(dge.files[x], pattern="DE_(\\S*)_Severity\\.Q\\.csv", replacement="\\1")
     x.csv$Sub.Annotation <- x.annot
@@ -918,7 +957,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.CM"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd4.cm.labels)) +
-        ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.CM-quadratic_volcano.pdf",
+        ggsave("~/Dropbox/COVID19/Updated_plots/CD4.CM-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -993,7 +1032,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Naive"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd4.naive.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Naive-quadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD4.Naive-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbat=FALSE) +
     NULL
 ```
@@ -1069,7 +1108,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.Naive"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd8.naive.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.Naive-quadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD8.Naive-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbat=FALSE) +
     NULL
 ```
@@ -1145,7 +1184,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.EM"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd8.em.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.CEMquadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD8.CEMquadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -1237,7 +1276,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD8.TE"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=cd8.te.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD8.TE-quadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD8.TE-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -1320,7 +1359,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("CD4.Tfh"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=tfh.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/CD4.Tfh-quadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/CD4.Tfh-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -1410,7 +1449,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("gdT"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=gdt.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/gdT-quadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/gdT-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -1487,7 +1526,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("MAIT"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=mait.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/MAIT-quadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/MAIT-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```
@@ -1563,7 +1602,7 @@ ggplot(quadratic.dge.df[quadratic.dge.df$Sub.Annotation %in% c("Treg"), ],
     geom_point() +
     theme_cowplot() +
     geom_text_repel(aes(label=treg.labels)) +
-    ggsave("~/Dropbox/COVID19/manuscripts/Consortium/DEG_plots/Treg-quadratic_volcano.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/Treg-quadratic_volcano.pdf",
            height=3.95, width=4.95, useDingbats=FALSE) +
     NULL
 ```

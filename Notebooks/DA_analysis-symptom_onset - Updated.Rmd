@@ -1,5 +1,5 @@
 ---
-title: "COVID19: Differential abundance based on symptom onset"
+title: "COVID19: Differential abundance based on symptom onset - Updated"
 output: html_notebook
 ---
 
@@ -25,8 +25,19 @@ library(kableExtra)
 
 
 ```{r}
-covid.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
+covid.meta <- read.csv("~/Dropbox/COVID19/Data/basic_COVID19_PBMC_metadata_160212.csv",
                         header=TRUE, stringsAsFactors=FALSE)
+old.meta <- read.csv("~/Dropbox/COVID19/Data/Metadata FINAL 10122020.csv",
+                     header=TRUE, stringsAsFactors=FALSE)
+old.meta$sample_id[old.meta$sample_id %in% c("BGCV13_CV0201")] <- "BGCV06_CV0201"
+old.meta$sample_id[old.meta$sample_id %in% c("BGCV06_CV0326")] <- "BGCV13_CV0326"
+
+covid.meta$AgeRange <- covid.meta$Age
+covid.meta$Status_on_day_collection_summary[covid.meta$Status_on_day_collection_summary %in% c("LPS_10hours")] <- "LPS"
+covid.meta$Status_on_day_collection_summary[covid.meta$Status_on_day_collection_summary %in% c("LPS_90mins")] <- "LPS"
+
+covid.meta <- merge(covid.meta[, !colnames(covid.meta) %in% c("Age")], old.meta[, c("sample_id", "patient_id", "Age")],
+                    by='sample_id')
 
 covid.meta$Days_from_onset[covid.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
 covid.meta$Days_from_onset <- as.numeric(covid.meta$Days_from_onset)
@@ -35,11 +46,11 @@ covid.meta$Days_from_onset <- as.numeric(covid.meta$Days_from_onset)
 Plot days since symptom onset by disease severity and Site.
 
 ```{r, fig.height=2.95, fig.width=3.95,}
-covid.meta$OrderedSeverity <- ordered(covid.meta$D0_status_summary,
+covid.meta$OrderedSeverity <- ordered(covid.meta$Status_on_day_collection_summary,
                                       levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
 
 ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
-                      !covid.meta$D0_status_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
+                      !covid.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
                       !is.na(covid.meta$Days_from_onset), ],
        aes(x=OrderedSeverity, y=Days_from_onset)) +
     geom_boxplot() +
@@ -47,18 +58,18 @@ ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
     theme_cowplot()  +
     theme(aspect=1,
           axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
-    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_severity-boxplot.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/SymptomOnset_severity-boxplot.pdf",
            height=2.95, width=3.95, useDingbats=FALSE) +
     NULL
 ```
 
 
 ```{r, fig.height=2.95, fig.width=3.95,}
-covid.meta$OrderedSeverity <- ordered(covid.meta$D0_status_summary,
+covid.meta$OrderedSeverity <- ordered(covid.meta$Status_on_day_collection_summary,
                                       levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
 
 ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
-                      !covid.meta$D0_status_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
+                      !covid.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
                       !is.na(covid.meta$Days_from_onset), ],
        aes(x=Site, y=Days_from_onset)) +
     geom_boxplot() +
@@ -66,7 +77,7 @@ ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
     theme_cowplot()  +
     theme(aspect=1,
           axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
-    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_Site-boxplot.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/SymptomOnset_Site-boxplot.pdf",
            height=2.95, width=3.95, useDingbats=FALSE) +
     NULL
 ```
@@ -74,11 +85,11 @@ ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
 
 
 ```{r, warning=FALSE, message=FALSE}
-all.meta <- read.table("~/Dropbox/COVID19/Data/COVID19_scMeta-data.tsv",
+all.meta <- read.table("~/Dropbox/COVID19/Data/Updated/COVID19_scMeta-data.tsv",
                        sep="\t", header=TRUE, stringsAsFactors=FALSE)
 rownames(all.meta) <- all.meta$CellID
 
-doublet.remove <- read.table("~/Dropbox/COVID19/Data/Annotations/All_doublets.tsv",
+doublet.remove <- read.table("~/Dropbox/COVID19/Data/Updated/All_doublets.tsv",
                              sep="\t", header=FALSE, stringsAsFactors=FALSE)
 
 # remove BGCV01_CV0209 and CV0198
@@ -86,14 +97,6 @@ all.meta <- all.meta[!all.meta$sample_id %in% c("BGCV01_CV0902"), ]
 all.meta <- all.meta[!all.meta$patient_id %in% c("CV0198"), ]
 all.meta$Days_from_onset[all.meta$Days_from_onset %in% c("Not_known", "Healthy")] <- NA
 all.meta$Days_from_onset <- as.numeric(all.meta$Days_from_onset)
-
-initial_clustering <- read.table("~/Dropbox/COVID19/Data/combined_dec_MetaData.txt",
-                                 sep="\t", header=TRUE, stringsAsFactors=FALSE, row.names=1)
-rownames(initial_clustering) <- gsub(rownames(initial_clustering), pattern="^b", replacement="")
-initial_clustering$initial_clustering <- gsub(initial_clustering$initial_clustering, pattern="^b", replacement="")
-initial_clustering$CellID <- rownames(initial_clustering)
-
-all.meta <- merge(all.meta, initial_clustering[, c("CellID", "initial_clustering")], by='CellID')
 
 n.cell.vecc <- table(all.meta$sample_id)
 
@@ -125,10 +128,10 @@ cell.freq.merge <- merge(cell.melt, covid.meta, by='sample_id')
 ```{r}
 # set up testing model
 rownames(covid.meta) <- covid.meta$sample_id
-init.meta <- covid.meta[!covid.meta$D0_status_summary %in% c("Non_covid", "LPS", "Healthy"), ]
-init.meta$OrderedSeverity <- ordered(init.meta$D0_status_summary,
+init.meta <- covid.meta[!covid.meta$Status_on_day_collection_summary %in% c("Non_covid", "LPS", "Healthy"), ]
+init.meta$OrderedSeverity <- ordered(init.meta$Status_on_day_collection_summary,
                                       levels=c("Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
-init.meta <- init.meta[init.meta$D0_status_summary %in% c("Mild", "Moderate", "Severe", "Critical"), ]
+init.meta <- init.meta[init.meta$Status_on_day_collection_summary %in% c("Mild", "Moderate", "Severe", "Critical"), ]
 
 init.meta$Days_from_onset[init.meta$Days_from_onset %in% c("Not_known")] <- NA
 init.meta$Days_from_onset <- as.numeric(init.meta$Days_from_onset)
@@ -140,10 +143,10 @@ init.model <- model.matrix(~ Sex + Age + Site + Days_from_onset,
 # count cells
 cell.freq.tab <- t(table(all.meta$sample_id[all.meta$Collection_Day %in% c("D0") &
                                                 !is.na(all.meta$Days_from_onset) &
-                                                !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")],
+                                                !all.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")],
                          all.meta$initial_clustering[all.meta$Collection_Day %in% c("D0") &
                                                          !is.na(all.meta$Days_from_onset) &
-                                                         !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")]))
+                                                         !all.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic")]))
 
 cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublet", "Doublets", "Doublets:Bcell", "Doublets:Platelet"), ]
 test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
@@ -182,7 +185,7 @@ ggplot(init.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
     geom_text_repel(aes(label=init.resplot.labels),
                      fill='white') +
     labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
-    ggsave("~/Dropbox/COVID19/plot.dir/All_edgeR_volcano_daysOnset-linear.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/All_edgeR_volcano_daysOnset-linear.pdf",
            height=2.95, width=4.15, useDingbats=FALSE) +
     NULL
 ```
@@ -198,7 +201,7 @@ names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "M
 
 # censor outliers to the 95th quantile for each cell type.
 plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
-                                   !cell.freq.merge$D0_status_summary %in% c("LPS", "Non_covid") &
+                                   !cell.freq.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid") &
                                    !is.na(cell.freq.merge$Days_from_onset) &
                                    cell.freq.merge$CellType %in% da.clusters, ]
 
@@ -209,13 +212,13 @@ q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacemen
 plotting.df <- merge(plotting.df, q95.df, by='CellType')
 plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
 
-plotting.df$D0_status_summary <- ordered(plotting.df$D0_status_summary,
+plotting.df$Status_on_day_collection_summary <- ordered(plotting.df$Status_on_day_collection_summary,
                                          levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe", "Critical"))
 
-ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy", "Asymptomatic"), ],
+ggplot(plotting.df[!plotting.df$Status_on_day_collection_summary %in% c("Healthy", "Asymptomatic"), ],
        aes(x=Days_from_onset, y=Freq)) +
     #geom_boxplot(outlier.size=0.5, coef=1.5) +
-    geom_point(aes(colour=D0_status_summary), size=1) +
+    geom_point(aes(colour=Status_on_day_collection_summary), size=1) +
     stat_smooth(method=MASS::rlm) +
     theme_cowplot() +
     facet_wrap(~CellType, scales="free_y", nrow=3) +
@@ -227,7 +230,7 @@ ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy", "Asymptomati
           strip.text=element_text(size=12)) +
     labs(x="Severity", y="Proportion") +
     guides(colour=guide_legend(title="Severity")) +
-    ggsave("~/Dropbox/COVID19/plot.dir/All_proportions-DA_daysOnset-points.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/All_proportions-DA_daysOnset-points.pdf",
            height=5.15, width=9.95, useDingbats=FALSE) +
     NULL
 ```
@@ -237,7 +240,7 @@ Many of these changes seem to be driven by critically ill patients.
 
 ```{r, warning=FALSE, message=FALSE}
 write.table(init.res,
-            file="~/Dropbox/COVID19/Data/SymptomOnset_resTable.txt",
+            file="~/Dropbox/COVID19/Data/Updated/SymptomOnset_resTable.txt",
             sep="\t", quote=FALSE, row.names=FALSE)
 
 # print P-values to html table
@@ -246,7 +249,7 @@ clon.lm.pvalues <- data.frame("CellType"=init.res$CellType, "logFC"=init.res$log
                               "FDR"=init.res$FDR)
 
 kbl(clon.lm.pvalues) %>% kable_paper(full_width=FALSE) %>% 
-    save_kable("~/Dropbox/COVID19/plot.dir/DA_symptomOnset_trend_pvals.html",
+    save_kable("~/Dropbox/COVID19/Updated_plots/DA_symptomOnset_trend_pvals.html",
                self_contained=TRUE)
 
 kable(clon.lm.pvalues)
@@ -258,7 +261,7 @@ kable(clon.lm.pvalues)
 ```{r}
 # set up testing model
 rownames(covid.meta) <- covid.meta$sample_id
-sanscrit.meta <- covid.meta[!covid.meta$D0_status_summary %in% c("Non_covid", "LPS", "Healthy", "Critical"), ]
+sanscrit.meta <- covid.meta[!covid.meta$Status_on_day_collection_summary %in% c("Non_covid", "LPS", "Healthy", "Critical"), ]
 sanscrit.meta$Days_from_onset[sanscrit.meta$Days_from_onset %in% c("Not_known")] <- NA
 sanscrit.meta$Days_from_onset <- as.numeric(sanscrit.meta$Days_from_onset)
 sanscrit.meta <- sanscrit.meta[!is.na(sanscrit.meta$Days_from_onset), ]
@@ -269,10 +272,10 @@ sanscrit.model <- model.matrix(~ Sex + Age + Site + Days_from_onset,
 # count cells
 cell.freq.tab <- t(table(all.meta$sample_id[all.meta$Collection_Day %in% c("D0") &
                                                 !is.na(all.meta$Days_from_onset) &
-                                                !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic", "Critical")],
+                                                !all.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic", "Critical")],
                          all.meta$initial_clustering[all.meta$Collection_Day %in% c("D0") &
                                                          !is.na(all.meta$Days_from_onset) &
-                                                         !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic", "Critical")]))
+                                                         !all.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy", "Asymptomatic", "Critical")]))
 
 cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublet", "Doublets", "Doublets:Bcell", "Doublets:Platelet"), ]
 test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
@@ -311,7 +314,7 @@ ggplot(sanscrit.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
     geom_text_repel(aes(label=sanscrit.resplot.labels),
                      fill='white') +
     labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
-    ggsave("~/Dropbox/COVID19/plot.dir/All_edgeR_volcano_daysOnset-noCritical-linear.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/All_edgeR_volcano_daysOnset-noCritical-linear.pdf",
            height=2.95, width=4.15, useDingbats=FALSE) +
     NULL
 ```
@@ -327,7 +330,7 @@ names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "M
 
 # censor outliers to the 95th quantile for each cell type.
 plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
-                                   !cell.freq.merge$D0_status_summary %in% c("LPS", "Non_covid") &
+                                   !cell.freq.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid") &
                                    !is.na(cell.freq.merge$Days_from_onset) &
                                    cell.freq.merge$CellType %in% da.clusters, ]
 
@@ -338,13 +341,13 @@ q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacemen
 plotting.df <- merge(plotting.df, q95.df, by='CellType')
 plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
 
-plotting.df$D0_status_summary <- ordered(plotting.df$D0_status_summary,
+plotting.df$Status_on_day_collection_summary <- ordered(plotting.df$Status_on_day_collection_summary,
                                          levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe"))
 
-ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy", "Asymptomatic", "Critical"), ],
+ggplot(plotting.df[!plotting.df$Status_on_day_collection_summary %in% c("Healthy", "Asymptomatic", "Critical"), ],
        aes(x=Days_from_onset, y=Freq)) +
     #geom_boxplot(outlier.size=0.5, coef=1.5) +
-    geom_point(aes(colour=D0_status_summary), size=1) +
+    geom_point(aes(colour=Status_on_day_collection_summary), size=1) +
     stat_smooth(method=MASS::rlm) +
     theme_cowplot() +
     facet_wrap(~CellType, scales="free_y", nrow=3) +
@@ -356,7 +359,7 @@ ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy", "Asymptomati
           strip.text=element_text(size=12)) +
     labs(x="Severity", y="Proportion") +
     guides(colour=guide_legend(title="Symptom duration")) +
-    ggsave("~/Dropbox/COVID19/plot.dir/All_proportions-DA_daysOnset-noCritical-points.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/All_proportions-DA_daysOnset-noCritical-points.pdf",
            height=5.15, width=9.95, useDingbats=FALSE) +
     NULL
 ```
@@ -366,7 +369,7 @@ Many of these changes seem to be driven by critically ill patients.
 
 ```{r, warning=FALSE, message=FALSE}
 write.table(sanscrit.res,
-            file="~/Dropbox/COVID19/Data/SymptomOnset-noCritical_resTable.txt",
+            file="~/Dropbox/COVID19/Data/Updated/SymptomOnset-noCritical_resTable.txt",
             sep="\t", quote=FALSE, row.names=FALSE)
 
 # print P-values to html table
@@ -375,7 +378,7 @@ clon.lm.pvalues <- data.frame("CellType"=sanscrit.res$CellType, "logFC"=sanscrit
                               "FDR"=sanscrit.res$FDR)
 
 kbl(clon.lm.pvalues) %>% kable_paper(full_width=FALSE) %>% 
-    save_kable("~/Dropbox/COVID19/plot.dir/DA_symptomOnset-noCritical_trend_pvals.html",
+    save_kable("~/Dropbox/COVID19/Updated_plots/DA_symptomOnset-noCritical_trend_pvals.html",
                self_contained=TRUE)
 
 kable(clon.lm.pvalues)
@@ -408,7 +411,7 @@ ggplot(compare.model, aes(x=Full.logFC, y=woCritical.logFC)) +
          y="log Fold Change: w/o Critical") +
     geom_text_repel(aes(label=cell.labels),
                     force=50) +
-    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_compare-points.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/SymptomOnset_compare-points.pdf",
            height=2.95, width=2.95, useDingbats=FALSE) +
     NULL
 ```
@@ -424,7 +427,7 @@ Remove the outliers w.r.t. time since symptom onset to test the sensitivity.
 
 ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
                       covid.meta$Days_from_onset <= 24 &
-                      !covid.meta$D0_status_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
+                      !covid.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Asymptomatic", "Healthy") &
                       !is.na(covid.meta$Days_from_onset), ],
        aes(x=OrderedSeverity, y=Days_from_onset)) +
     geom_boxplot() +
@@ -432,7 +435,7 @@ ggplot(covid.meta[covid.meta$Collection_Day %in% c("D0") &
     theme_cowplot()  +
     theme(aspect=1,
           axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
-    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_severity-sensitivityAnalysis-boxplot.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/SymptomOnset_severity-sensitivityAnalysis-boxplot.pdf",
            height=2.95, width=3.95, useDingbats=FALSE) +
     NULL
 ```
@@ -442,7 +445,7 @@ This shows the distribution of symptom duration w.r.t. disease severity.
 ```{r}
 # set up testing model
 rownames(covid.meta) <- covid.meta$sample_id
-symoutlier.meta <- covid.meta[!covid.meta$D0_status_summary %in% c("Non_covid", "LPS", "Healthy"), ]
+symoutlier.meta <- covid.meta[!covid.meta$Status_on_day_collection_summary %in% c("Non_covid", "LPS", "Healthy"), ]
 symoutlier.meta$Days_from_onset[symoutlier.meta$Days_from_onset %in% c("Not_known")] <- NA
 symoutlier.meta$Days_from_onset <- as.numeric(symoutlier.meta$Days_from_onset)
 symoutlier.meta <- symoutlier.meta[!is.na(symoutlier.meta$Days_from_onset), ]
@@ -455,11 +458,11 @@ symoutlier.model <- model.matrix(~ Sex + Age + Site + Days_from_onset,
 cell.freq.tab <- t(table(all.meta$sample_id[all.meta$Collection_Day %in% c("D0") &
                                                 !is.na(all.meta$Days_from_onset) &
                                                 all.meta$Days_from_onset <= 24 &
-                                                !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy")],
+                                                !all.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy")],
                          all.meta$initial_clustering[all.meta$Collection_Day %in% c("D0") &
                                                          !is.na(all.meta$Days_from_onset) &
                                                          all.meta$Days_from_onset <= 24 &
-                                                         !all.meta$D0_status_summary %in% c("LPS", "Non_covid", "Healthy")]))
+                                                         !all.meta$Status_on_day_collection_summary %in% c("LPS", "Non_covid", "Healthy")]))
 
 cell.freq.tab <- cell.freq.tab[!rownames(cell.freq.tab) %in% c("Doublet", "Doublets", "Doublets:Bcell", "Doublets:Platelet"), ]
 test.samps <- intersect(colnames(cell.freq.tab), names(n.cell.vecc))
@@ -498,7 +501,7 @@ ggplot(symoutlier.res, aes(x=logFC, y=-log10(FDR), fill=as.character(Sig))) +
     geom_text_repel(aes(label=symoutlier.resplot.labels),
                      fill='white') +
     labs(x="log fold change", y=expression(paste("-log"[10], " FDR"))) +
-    ggsave("~/Dropbox/COVID19/plot.dir/All_edgeR_volcano_daysOnset-SensitivityAnalysis-linear.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/All_edgeR_volcano_daysOnset-SensitivityAnalysis-linear.pdf",
            height=2.95, width=4.15, useDingbats=FALSE) +
     NULL
 ```
@@ -514,7 +517,7 @@ names(group.cols) <- c("Healthy", "LPS", "Non_covid", "Asymptomatic", "Mild", "M
 
 # censor outliers to the 95th quantile for each cell type.
 plotting.df <- cell.freq.merge[cell.freq.merge$Collection_Day %in% c("D0") &
-                                   !cell.freq.merge$D0_status_summary %in% c("LPS", "Non_covid") &
+                                   !cell.freq.merge$Status_on_day_collection_summary %in% c("LPS", "Non_covid") &
                                    !is.na(cell.freq.merge$Days_from_onset) &
                                    cell.freq.merge$CellType %in% da.clusters, ]
 
@@ -525,14 +528,14 @@ q95.df <- data.frame("CellType"=gsub(names(q95.ct), pattern="\\.95%", replacemen
 plotting.df <- merge(plotting.df, q95.df, by='CellType')
 plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Freq <- plotting.df[plotting.df$Freq >= plotting.df$Q95, ]$Q95
 
-plotting.df$D0_status_summary <- ordered(plotting.df$D0_status_summary,
+plotting.df$Status_on_day_collection_summary <- ordered(plotting.df$Status_on_day_collection_summary,
                                          levels=c("Healthy", "Asymptomatic", "Mild", "Moderate", "Severe"))
 
-ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy") &
+ggplot(plotting.df[!plotting.df$Status_on_day_collection_summary %in% c("Healthy") &
                        plotting.df$Days_from_onset <= 24, ],
        aes(x=Days_from_onset, y=Freq)) +
     #geom_boxplot(outlier.size=0.5, coef=1.5) +
-    geom_point(aes(colour=D0_status_summary), size=1) +
+    geom_point(aes(colour=Status_on_day_collection_summary), size=1) +
     stat_smooth(method=MASS::rlm) +
     theme_cowplot() +
     facet_wrap(~CellType, scales="free_y", nrow=3) +
@@ -544,7 +547,7 @@ ggplot(plotting.df[!plotting.df$D0_status_summary %in% c("Healthy") &
           strip.text=element_text(size=12)) +
     labs(x="Symptom duration", y="Proportion") +
     guides(colour=guide_legend(title="Symptom duration")) +
-    ggsave("~/Dropbox/COVID19/plot.dir/All_proportions-DA_daysOnset-sensitivityAnalysis-points.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/All_proportions-DA_daysOnset-sensitivityAnalysis-points.pdf",
            height=5.15, width=9.95, useDingbats=FALSE) +
     NULL
 ```
@@ -554,7 +557,7 @@ This shows the relationship between symptom duration and cell type abundance, ex
 
 ```{r, warning=FALSE, message=FALSE}
 write.table(symoutlier.res,
-            file="~/Dropbox/COVID19/Data/SymptomOnset-sensitivityAnalysis_resTable.txt",
+            file="~/Dropbox/COVID19/Data/Updated/SymptomOnset-sensitivityAnalysis_resTable.txt",
             sep="\t", quote=FALSE, row.names=FALSE)
 
 # print P-values to html table
@@ -563,7 +566,7 @@ clon.lm.pvalues <- data.frame("CellType"=symoutlier.res$CellType, "logFC"=symout
                               "FDR"=symoutlier.res$FDR)
 
 kbl(clon.lm.pvalues) %>% kable_paper(full_width=FALSE) %>% 
-    save_kable("~/Dropbox/COVID19/plot.dir/DA_symptomOnset-sensitivityAnalysis_trend_pvals.html",
+    save_kable("~/Dropbox/COVID19/Updated_plots/DA_symptomOnset-sensitivityAnalysis_trend_pvals.html",
                self_contained=TRUE)
 
 kable(clon.lm.pvalues)
@@ -596,7 +599,7 @@ ggplot(compare.model, aes(x=Full.logFC, y=Ltday24.logFC)) +
          y="log Fold Change: Symptoms\n<24 days") +
     geom_text_repel(aes(label=cell.labels),
                     force=50) +
-    ggsave("~/Dropbox/COVID19/plot.dir/SymptomOnset_compare-sensitivityAnalysis-points.pdf",
+    ggsave("~/Dropbox/COVID19/Updated_plots/SymptomOnset_compare-sensitivityAnalysis-points.pdf",
            height=2.95, width=3.35, useDingbats=FALSE) +
     NULL
 ```
