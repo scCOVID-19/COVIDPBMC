@@ -45,7 +45,7 @@ Data is available under `COVID-19 PBMC Ncl-Cambridge-UCL`. Interactive view avai
 
 
 ## BCR analysis package
-<a href="https://sc-dandelion.readthedocs.io/" rel="dandelion"><img src="https://github.com/zktuong/dandelion/blob/master/notebooks/img/dandelion_logo.png" height="100"></a>
+<a href="https://sc-dandelion.readthedocs.io/" rel="dandelion"><img src="https://github.com/zktuong/dandelion/blob/master/docs/notebooks/img/dandelion_logo.png" height="100"></a>
 
 [dandelion github](https://github.com/zktuong/dandelion)
 
