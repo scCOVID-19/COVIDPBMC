@@ -49,6 +49,8 @@ Data is available under `COVID-19 PBMC Ncl-Cambridge-UCL`. Interactive view avai
 
 [dandelion github](https://github.com/zktuong/dandelion)
 
+BCR AIRR files are available upon request. Please email the corresponding authors in the main manuscript (https://www.nature.com/articles/s41591-021-01329-2).
+
 ## Contacts
 For queries, please contact one of the following:
 
